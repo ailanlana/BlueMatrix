@@ -4,9 +4,7 @@ plugins {
 
 dependencies {
     compileOnly project(":core:bluematrix-core")
-    compileOnly project(":core:bluematrix-logging")
 
-    compileOnly 'org.reflections:reflections:0.10.2'
     compileOnly 'me.carleslc.Simple-YAML:Simple-Yaml:1.8.4'
     compileOnly 'com.google.code.gson:gson:2.11.0'
 

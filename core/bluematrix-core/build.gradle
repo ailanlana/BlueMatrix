@@ -6,7 +6,7 @@ plugins {
 dependencies {
     api project(":core:bluematrix-loader")
     api project(":core:bluematrix-logging")
-    compileOnly 'org.reflections:reflections:0.10.2'
+    compileOnlyApi 'org.reflections:reflections:0.10.2'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testImplementation 'org.reflections:reflections:0.10.2'

@@ -11,8 +11,6 @@ repositories {
 
 dependencies {
     compileOnly project(":core:bluematrix-core")
-    compileOnly project(":core:bluematrix-logging")
-    compileOnly 'org.reflections:reflections:0.10.2'
     compileOnly 'cc.carm.lib:easysql-api:0.4.7'
     compileOnly 'cc.carm.lib:easysql-hikaricp:0.4.7'
 
