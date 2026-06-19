@@ -1,0 +1,24 @@
+package io.fntlv.bluematrix.config;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+
+public final class YamlConfigTestUtil {
+
+    private YamlConfigTestUtil() {
+    }
+
+    public static void write(File file, String content) {
+        File parent = file.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            throw new RuntimeException("Failed to create test directory: " + parent.getAbsolutePath());
+        }
+        try (FileOutputStream outputStream = new FileOutputStream(file)) {
+            outputStream.write(content.getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+}

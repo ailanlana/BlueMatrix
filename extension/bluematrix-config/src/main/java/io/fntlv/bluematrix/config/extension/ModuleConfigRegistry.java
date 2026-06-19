@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.Map;
 
 public class ModuleConfigRegistry {
+    public static final String MODULES_DIRECTORY_NAME = "modules";
     public static final String DEFAULT_FILE_NAME = "config.yml";
 
     private final File dataFolder;
@@ -85,7 +86,7 @@ public class ModuleConfigRegistry {
     }
 
     public File getModulePath(String moduleId) {
-        return new File(new File(dataFolder, "module"), moduleId);
+        return new File(new File(dataFolder, MODULES_DIRECTORY_NAME), moduleId);
     }
 
     public static String normalizeFileName(String fileName) {

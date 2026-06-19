@@ -10,6 +10,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ModulePersistenceRegistry {
+    public static final String MODULES_DIRECTORY_NAME = "modules";
+
     private final File dataFolder;
     private final Map<String, BlueStorage> registeredStorages = Collections.synchronizedMap(new HashMap<String, BlueStorage>());
 
@@ -41,7 +43,7 @@ public class ModulePersistenceRegistry {
     }
 
     public File getModulePath(String moduleId) {
-        return new File(new File(dataFolder, "module"), moduleId);
+        return new File(new File(dataFolder, MODULES_DIRECTORY_NAME), moduleId);
     }
 
     public File getModuleDataPath(String moduleId) {

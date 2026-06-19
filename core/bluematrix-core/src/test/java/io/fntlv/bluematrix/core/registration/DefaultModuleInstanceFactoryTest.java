@@ -1,0 +1,487 @@
+package io.fntlv.bluematrix.core.module.registration;
+
+import io.fntlv.bluematrix.core.event.DefaultModuleEventBus;
+import io.fntlv.bluematrix.core.event.ModuleEventBus;
+import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
+import io.fntlv.bluematrix.core.module.Module;
+import io.fntlv.bluematrix.core.module.ModuleInfo;
+import io.fntlv.bluematrix.core.module.ModuleRegistry;
+import io.fntlv.bluematrix.core.module.registration.instance.DefaultModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.registration.instance.inject.ModuleFieldInjectionException;
+import io.fntlv.bluematrix.core.module.registration.instance.inject.ModuleInject;
+import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolutionException;
+import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolver;
+import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolverRegistry;
+import io.fntlv.bluematrix.core.module.registration.instance.parameter.resolver.ModuleEventBusParameterResolver;
+import io.fntlv.bluematrix.core.module.registration.instance.parameter.resolver.ModuleRegistryParameterResolver;
+import io.fntlv.bluematrix.core.module.storage.DefaultModuleRegistry;
+import io.fntlv.bluematrix.core.module.storage.ModuleStore;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.File;
+import java.lang.reflect.InvocationTargetException;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+class DefaultModuleInstanceFactoryTest {
+
+    @TempDir
+    File tempDir;
+
+    private final DefaultModuleInstanceFactory factory = new DefaultModuleInstanceFactory();
+
+    @Test
+    void createsModuleWithNoArgumentConstructor() {
+        ModuleCandidate candidate = candidate(FactoryModule.class);
+
+        Module module = factory.create(candidate);
+
+        assertEquals(FactoryModule.class, module.getClass());
+    }
+
+    @Test
+    void wrapsInstantiationFailure() {
+        ModuleCandidate candidate = candidate(MissingNoArgumentConstructorModule.class);
+
+        RuntimeException exception = assertThrows(ModuleInstantiationException.class, () -> factory.create(candidate));
+
+        assertInstanceOf(ModuleInstantiationException.class, exception);
+        assertInstanceOf(ModuleParameterResolutionException.class, exception.getCause());
+    }
+
+    @Test
+    void injectsModuleRegistryConstructorParameter() {
+        ModuleCandidate candidate = candidate(ModuleRegistryConstructorModule.class);
+        ModuleRegistry moduleRegistry = new DefaultModuleRegistry(new ModuleStore(), tempDir);
+        DefaultModuleInstanceFactory registryFactory = new DefaultModuleInstanceFactory(parameterResolvers(
+                new ModuleRegistryParameterResolver(moduleRegistry)
+        ));
+
+        Module module = registryFactory.create(candidate);
+
+        assertSame(moduleRegistry, ((ModuleRegistryConstructorModule) module).moduleRegistry);
+    }
+
+    @Test
+    void injectsModuleEventBusConstructorParameter() {
+        ModuleCandidate candidate = candidate(ModuleEventBusConstructorModule.class);
+        ModuleEventBus eventBus = new DefaultModuleEventBus();
+        DefaultModuleInstanceFactory eventBusFactory = new DefaultModuleInstanceFactory(parameterResolvers(
+                new ModuleEventBusParameterResolver(eventBus)
+        ));
+
+        Module module = eventBusFactory.create(candidate);
+
+        assertSame(eventBus, ((ModuleEventBusConstructorModule) module).eventBus);
+    }
+
+    @Test
+    void injectsModuleRegistryField() {
+        ModuleCandidate candidate = candidate(ModuleRegistryFieldModule.class);
+        ModuleRegistry moduleRegistry = new DefaultModuleRegistry(new ModuleStore(), tempDir);
+        DefaultModuleInstanceFactory registryFactory = new DefaultModuleInstanceFactory(parameterResolvers(
+                new ModuleRegistryParameterResolver(moduleRegistry)
+        ));
+
+        Module module = registryFactory.create(candidate);
+
+        assertSame(moduleRegistry, ((ModuleRegistryFieldModule) module).moduleRegistry);
+    }
+
+    @Test
+    void injectsPrivateModuleEventBusField() {
+        ModuleCandidate candidate = candidate(PrivateEventBusFieldModule.class);
+        ModuleEventBus eventBus = new DefaultModuleEventBus();
+        DefaultModuleInstanceFactory eventBusFactory = new DefaultModuleInstanceFactory(parameterResolvers(
+                new ModuleEventBusParameterResolver(eventBus)
+        ));
+
+        Module module = eventBusFactory.create(candidate);
+
+        assertSame(eventBus, ((PrivateEventBusFieldModule) module).eventBus);
+    }
+
+    @Test
+    void constructorAndFieldInjectionCanBeUsedTogether() {
+        ModuleCandidate candidate = candidate(ConstructorAndFieldModule.class);
+        ModuleRegistry moduleRegistry = new DefaultModuleRegistry(new ModuleStore(), tempDir);
+        ModuleEventBus eventBus = new DefaultModuleEventBus();
+        ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
+        parameterResolvers.register(new ModuleRegistryParameterResolver(moduleRegistry));
+        parameterResolvers.register(new ModuleEventBusParameterResolver(eventBus));
+        DefaultModuleInstanceFactory mixedFactory = new DefaultModuleInstanceFactory(parameterResolvers);
+
+        Module module = mixedFactory.create(candidate);
+        ConstructorAndFieldModule typedModule = (ConstructorAndFieldModule) module;
+
+        assertSame(moduleRegistry, typedModule.moduleRegistry);
+        assertSame(eventBus, typedModule.eventBus);
+    }
+
+    @Test
+    void fieldsWithoutModuleInjectAreNotInjected() {
+        ModuleCandidate candidate = candidate(UnmarkedFieldModule.class);
+        ModuleRegistry moduleRegistry = new DefaultModuleRegistry(new ModuleStore(), tempDir);
+        DefaultModuleInstanceFactory registryFactory = new DefaultModuleInstanceFactory(parameterResolvers(
+                new ModuleRegistryParameterResolver(moduleRegistry)
+        ));
+
+        Module module = registryFactory.create(candidate);
+
+        assertNull(((UnmarkedFieldModule) module).moduleRegistry);
+    }
+
+    @Test
+    void finalInjectionFieldFailsInstantiation() {
+        ModuleCandidate candidate = candidate(FinalFieldModule.class);
+        ModuleRegistry moduleRegistry = new DefaultModuleRegistry(new ModuleStore(), tempDir);
+        DefaultModuleInstanceFactory registryFactory = new DefaultModuleInstanceFactory(parameterResolvers(
+                new ModuleRegistryParameterResolver(moduleRegistry)
+        ));
+
+        ModuleInstantiationException exception = assertThrows(ModuleInstantiationException.class,
+                () -> registryFactory.create(candidate));
+
+        assertInstanceOf(ModuleFieldInjectionException.class, exception.getCause());
+    }
+
+    @Test
+    void staticInjectionFieldFailsInstantiation() {
+        ModuleCandidate candidate = candidate(StaticFieldModule.class);
+        ModuleRegistry moduleRegistry = new DefaultModuleRegistry(new ModuleStore(), tempDir);
+        DefaultModuleInstanceFactory registryFactory = new DefaultModuleInstanceFactory(parameterResolvers(
+                new ModuleRegistryParameterResolver(moduleRegistry)
+        ));
+
+        ModuleInstantiationException exception = assertThrows(ModuleInstantiationException.class,
+                () -> registryFactory.create(candidate));
+
+        assertInstanceOf(ModuleFieldInjectionException.class, exception.getCause());
+    }
+
+    @Test
+    void unsupportedInjectionFieldFailsInstantiation() {
+        ModuleCandidate candidate = candidate(UnsupportedFieldModule.class);
+
+        ModuleInstantiationException exception = assertThrows(ModuleInstantiationException.class,
+                () -> factory.create(candidate));
+
+        assertInstanceOf(ModuleFieldInjectionException.class, exception.getCause());
+    }
+
+    @Test
+    void constructorFailureUsesOriginalCause() {
+        ModuleCandidate candidate = candidate(ThrowingConstructorModule.class);
+
+        ModuleInstantiationException exception = assertThrows(ModuleInstantiationException.class,
+                () -> factory.create(candidate));
+
+        assertInstanceOf(IllegalStateException.class, exception.getCause());
+        assertEquals("constructor failed", exception.getCause().getMessage());
+    }
+
+    @Test
+    void constructorFailureDoesNotExposeInvocationTargetException() {
+        ModuleCandidate candidate = candidate(ThrowingConstructorModule.class);
+
+        ModuleInstantiationException exception = assertThrows(ModuleInstantiationException.class,
+                () -> factory.create(candidate));
+
+        if (exception.getCause() instanceof InvocationTargetException) {
+            throw new AssertionError("Constructor failure should expose the original cause");
+        }
+    }
+
+    @Test
+    void constructorModuleInstantiationExceptionIsNotWrappedAgain() {
+        ModuleCandidate candidate = candidate(ThrowingModuleInstantiationConstructorModule.class);
+
+        ModuleInstantiationException exception = assertThrows(ModuleInstantiationException.class,
+                () -> factory.create(candidate));
+
+        assertEquals("Failed to instantiate module: inner", exception.getMessage());
+        assertInstanceOf(IllegalStateException.class, exception.getCause());
+        assertEquals("inner cause", exception.getCause().getMessage());
+    }
+
+    @Test
+    void registerIfAbsentSkipsResolverWithSameClass() {
+        ModuleParameterResolverRegistry registry = new ModuleParameterResolverRegistry();
+
+        registry.registerIfAbsent(new TestParameterResolver());
+        registry.registerIfAbsent(new TestParameterResolver());
+
+        assertEquals(1, registry.resolvers().size());
+    }
+
+    private ModuleParameterResolverRegistry parameterResolvers(ModuleParameterResolver resolver) {
+        ModuleParameterResolverRegistry registry = new ModuleParameterResolverRegistry();
+        registry.register(resolver);
+        return registry;
+    }
+
+    private ModuleCandidate candidate(Class<? extends Module> moduleClass) {
+        return new ModuleCandidate(moduleClass, moduleClass.getAnnotation(ModuleInfo.class));
+    }
+
+    private static class TestParameterResolver implements ModuleParameterResolver {
+        @Override
+        public boolean supports(Class<?> parameterType) {
+            return false;
+        }
+
+        @Override
+        public Object resolve(Class<?> parameterType, ModuleCandidate candidate) {
+            return null;
+        }
+    }
+
+    @ModuleInfo(id = "factory-module", name = "Factory Module")
+    public static class FactoryModule implements Module {
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "missing-no-argument-constructor", name = "Missing No Argument Constructor")
+    public static class MissingNoArgumentConstructorModule implements Module {
+        public MissingNoArgumentConstructorModule(String value) {
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "module-registry-constructor", name = "Module Registry Constructor")
+    public static class ModuleRegistryConstructorModule implements Module {
+        private final ModuleRegistry moduleRegistry;
+
+        public ModuleRegistryConstructorModule(ModuleRegistry moduleRegistry) {
+            this.moduleRegistry = moduleRegistry;
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "module-event-bus-constructor", name = "Module Event Bus Constructor")
+    public static class ModuleEventBusConstructorModule implements Module {
+        private final ModuleEventBus eventBus;
+
+        public ModuleEventBusConstructorModule(ModuleEventBus eventBus) {
+            this.eventBus = eventBus;
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "module-registry-field", name = "Module Registry Field")
+    public static class ModuleRegistryFieldModule implements Module {
+        @ModuleInject
+        private ModuleRegistry moduleRegistry;
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "private-event-bus-field", name = "Private Event Bus Field")
+    public static class PrivateEventBusFieldModule implements Module {
+        @ModuleInject
+        private ModuleEventBus eventBus;
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "constructor-and-field", name = "Constructor And Field")
+    public static class ConstructorAndFieldModule implements Module {
+        private final ModuleRegistry moduleRegistry;
+        @ModuleInject
+        private ModuleEventBus eventBus;
+
+        public ConstructorAndFieldModule(ModuleRegistry moduleRegistry) {
+            this.moduleRegistry = moduleRegistry;
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "unmarked-field", name = "Unmarked Field")
+    public static class UnmarkedFieldModule implements Module {
+        private ModuleRegistry moduleRegistry;
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "final-field", name = "Final Field")
+    public static class FinalFieldModule implements Module {
+        @ModuleInject
+        private final ModuleRegistry moduleRegistry = null;
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "static-field", name = "Static Field")
+    public static class StaticFieldModule implements Module {
+        @ModuleInject
+        private static ModuleRegistry moduleRegistry;
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "unsupported-field", name = "Unsupported Field")
+    public static class UnsupportedFieldModule implements Module {
+        @ModuleInject
+        private String value;
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "throwing-constructor", name = "Throwing Constructor")
+    public static class ThrowingConstructorModule implements Module {
+        public ThrowingConstructorModule() {
+            throw new IllegalStateException("constructor failed");
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "throwing-module-instantiation-constructor", name = "Throwing Module Instantiation Constructor")
+    public static class ThrowingModuleInstantiationConstructorModule implements Module {
+        public ThrowingModuleInstantiationConstructorModule() {
+            throw new ModuleInstantiationException("inner", new IllegalStateException("inner cause"));
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+}

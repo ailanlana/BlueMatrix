@@ -2,9 +2,9 @@
 .idea/
 build/
 **/build/
-backs/
-test/
-runtime/
+/backs/
+/test/
+/runtime/
 *.class
 *.log
 *.tmp
