@@ -1,0 +1,62 @@
+plugins {
+    id 'java'
+    id ("com.github.johnrengelman.shadow") version "7.1.2" apply false
+}
+
+def publishableProjects = [
+        ':core:bluematrix-core',
+        ':core:bluematrix-loader',
+        ':core:bluematrix-logging',
+        ':extension:bluematrix-config',
+        ':extension:bluematrix-persistence',
+        ':extension:bluematrix-sql'
+]
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'maven-publish'
+
+    group = 'io.fntlv.bluematrix'
+    version = '0.1.0-SNAPSHOT'
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven { url 'https://maven.petrus.dev/public' }
+        maven { url 'https://repo.alessiodp.com/releases/' }
+        maven { url 'https://hub.spigotmc.org/nexus/repository/public/' }
+        maven { url 'https://oss.sonatype.org/content/groups/public/' }
+        maven { url 'https://repo.papermc.io/repository/maven-public/' }
+        maven { url 'https://repo.minebench.de/' }
+        maven { url 'https://jitpack.io' }
+    }
+
+    dependencies {
+        compileOnly ("org.projectlombok:lombok:1.18.32")
+        annotationProcessor ("org.projectlombok:lombok:1.18.32")
+    }
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    tasks.withType(JavaCompile) {
+        options.encoding = 'UTF-8'
+    }
+
+    if (publishableProjects.contains(project.path)) {
+        publishing {
+            publications {
+                mavenJava(MavenPublication) {
+                    from components.java
+                }
+            }
+        }
+    }
+}
+
+tasks.withType(Jar) {
+    enabled = false
+}
+

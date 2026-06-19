@@ -1,0 +1,19 @@
+
+plugins {
+    id ('java-library')
+}
+
+dependencies {
+    api project(":core:bluematrix-loader")
+    api project(":core:bluematrix-logging")
+    compileOnly 'org.reflections:reflections:0.10.2'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testImplementation 'org.reflections:reflections:0.10.2'
+    testRuntimeOnly 'org.slf4j:slf4j-api:1.7.36'
+    testRuntimeOnly 'ch.qos.logback:logback-classic:1.2.13'
+}
+
+test {
+    useJUnitPlatform()
+}

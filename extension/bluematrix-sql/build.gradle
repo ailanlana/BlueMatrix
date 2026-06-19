@@ -1,0 +1,29 @@
+plugins {
+    id 'java-library'
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url 'https://repo.carm.cc/repository/maven-public/'
+    }
+}
+
+dependencies {
+    compileOnly project(":core:bluematrix-core")
+    compileOnly project(":core:bluematrix-logging")
+    compileOnly 'org.reflections:reflections:0.10.2'
+    compileOnly 'cc.carm.lib:easysql-api:0.4.7'
+    compileOnly 'cc.carm.lib:easysql-hikaricp:0.4.7'
+
+    testImplementation project(":core:bluematrix-core")
+    testImplementation project(":core:bluematrix-logging")
+    testImplementation 'cc.carm.lib:easysql-api:0.4.7'
+    testImplementation 'cc.carm.lib:easysql-hikaricp:0.4.7'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testImplementation 'org.reflections:reflections:0.10.2'
+}
+
+test {
+    useJUnitPlatform()
+}

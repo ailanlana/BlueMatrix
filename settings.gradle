@@ -1,0 +1,15 @@
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'BlueMatrix'
+
+include 'core:bluematrix-core'
+include 'core:bluematrix-loader'
+include 'core:bluematrix-logging'
+include 'extension:bluematrix-config'
+include 'extension:bluematrix-persistence'
+include 'extension:bluematrix-sql'
