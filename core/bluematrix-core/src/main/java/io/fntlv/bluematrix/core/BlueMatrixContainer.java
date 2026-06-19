@@ -3,17 +3,18 @@ package io.fntlv.bluematrix.core;
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
 import io.fntlv.bluematrix.core.event.DefaultModuleEventBus;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
-import io.fntlv.bluematrix.core.BlueMatrixContainerException;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionLoader;
 import io.fntlv.bluematrix.core.module.ModuleRegistry;
 import io.fntlv.bluematrix.core.module.orchestration.DefaultModuleOrchestrator;
 import io.fntlv.bluematrix.core.module.orchestration.ModuleOrchestrator;
+import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.registration.DefaultModuleRegistrar;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegistrar;
 import io.fntlv.bluematrix.core.library.ModuleLibraryLoadListener;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolverRegistry;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.resolver.ModuleEventBusParameterResolver;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.resolver.ModuleRegistryParameterResolver;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
+import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleEventBusParameterResolver;
+import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleRegistryParameterResolver;
 import io.fntlv.bluematrix.core.module.registration.provider.JarModuleProvider;
 import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
 import io.fntlv.bluematrix.core.module.registration.provider.PackageModuleProvider;
@@ -34,24 +35,29 @@ public final class BlueMatrixContainer {
     private final ModuleOrchestrator moduleOrchestrator;
     @Getter
     private final ModuleEventBus eventBus;
+    @Getter
+    private final ModuleParameterResolverRegistry parameterResolvers;
+    @Getter
+    private final ModuleInstanceFactory instanceFactory;
 
     private BlueMatrixContainer(Builder builder) {
         ModuleStore moduleStore = new ModuleStore();
         this.eventBus = new DefaultModuleEventBus();
         this.registry = new DefaultModuleRegistry(moduleStore, builder.dataFolder);
-        ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
-        parameterResolvers.register(new ModuleRegistryParameterResolver(registry));
-        parameterResolvers.register(new ModuleEventBusParameterResolver(eventBus));
+        this.parameterResolvers = ModuleParameterResolverRegistry.createDefault();
+        this.parameterResolvers.register(new ModuleRegistryParameterResolver(registry));
+        this.parameterResolvers.register(new ModuleEventBusParameterResolver(eventBus));
+        this.instanceFactory = new DefaultModuleInstanceFactory(parameterResolvers);
         ModuleRegistrar moduleRegistrar = new DefaultModuleRegistrar(
                 builder.moduleProviders,
                 new TopologyDependencyResolver(),
                 eventBus,
-                parameterResolvers
+                instanceFactory
         );
         this.moduleOrchestrator = new DefaultModuleOrchestrator(moduleStore, moduleRegistrar, eventBus);
         registerListeners(builder.eventListeners);
         registerDefaultListeners(builder.libraryLoader);
-        eventBus.publish(new BlueMatrixContainerEvent.Created(parameterResolvers));
+        eventBus.publish(new BlueMatrixContainerEvent.Created(parameterResolvers, instanceFactory));
         this.moduleOrchestrator.initialize();
     }
 

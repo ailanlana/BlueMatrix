@@ -9,7 +9,8 @@ import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryException;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleRegistrationException;
-import io.fntlv.bluematrix.core.module.registration.instance.ModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.OtherInjectionContext;
 import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
 import io.fntlv.bluematrix.core.registration.scanned.ScanPackageMarker;
 import io.fntlv.bluematrix.core.registration.scanned.ScanPackageType;
@@ -116,9 +117,7 @@ class DefaultModuleRegistrarTest {
         StaticProvider provider = new StaticProvider(FirstModule.class);
         ModuleRegistrar registrar = new DefaultModuleRegistrar(Collections.singletonList(
                 provider
-        ), new TopologyDependencyResolver(), new DefaultModuleEventBus(), candidate -> {
-            throw new IllegalStateException("Expected instantiation runtime failure");
-        });
+        ), new TopologyDependencyResolver(), new DefaultModuleEventBus(), new RuntimeFailingInstanceFactory());
 
         assertThrows(ModuleRegistrationException.class, registrar::register);
     }
@@ -191,6 +190,11 @@ class DefaultModuleRegistrarTest {
 
         @Override
         public Module create(ModuleCandidate moduleCandidate) {
+            return createModule(moduleCandidate);
+        }
+
+        @Override
+        public Module createModule(ModuleCandidate moduleCandidate) {
             instantiateCount++;
             if (moduleCandidate.getModuleClass().equals(FailingInstantiateModule.class)) {
                 throw new ModuleInstantiationException(moduleCandidate.getModuleInfo().id(),
@@ -203,6 +207,28 @@ class DefaultModuleRegistrarTest {
             } catch (Exception e) {
                 throw new ModuleInstantiationException(moduleCandidate.getModuleInfo().id(), e);
             }
+        }
+
+        @Override
+        public <T> T createOther(Class<T> type, OtherInjectionContext context) {
+            throw new UnsupportedOperationException("StaticProvider only creates module instances");
+        }
+    }
+
+    private static class RuntimeFailingInstanceFactory implements ModuleInstanceFactory {
+        @Override
+        public Module create(ModuleCandidate candidate) {
+            return createModule(candidate);
+        }
+
+        @Override
+        public Module createModule(ModuleCandidate candidate) {
+            throw new IllegalStateException("Expected instantiation runtime failure");
+        }
+
+        @Override
+        public <T> T createOther(Class<T> type, OtherInjectionContext context) {
+            throw new UnsupportedOperationException("RuntimeFailingInstanceFactory only creates module instances");
         }
     }
 

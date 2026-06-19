@@ -33,23 +33,19 @@ public class ModuleConfigRegistry {
     }
 
     public ModuleConfigContext getContext(ModuleCandidate candidate) {
-        String moduleId = candidate.getModuleInfo().id();
-        ModuleConfigContext context = registeredContexts.get(moduleId);
-        if (context == null) {
-            throw new IllegalStateException("ModuleConfigContext should be registered for every module. "
-                    + "Missing context indicates an unexpected config extension lifecycle state: "
-                    + moduleId + " (" + candidate.getModuleClass().getName() + ")");
-        }
-        return context;
+        return getContext(candidate.getModuleInfo().id(), candidate.getModuleClass());
     }
 
     public ModuleConfigContext getContext(ModuleContext context) {
-        String moduleId = context.getInfo().id();
+        return getContext(context.getInfo().id(), context.getInstance().getClass());
+    }
+
+    public ModuleConfigContext getContext(String moduleId, Class<?> moduleClass) {
         ModuleConfigContext configContext = registeredContexts.get(moduleId);
         if (configContext == null) {
             throw new IllegalStateException("ModuleConfigContext should be registered for every module. "
                     + "Missing context indicates an unexpected config extension lifecycle state: "
-                    + moduleId + " (" + context.getInstance().getClass().getName() + ")");
+                    + moduleId + " (" + moduleClass.getName() + ")");
         }
         return configContext;
     }

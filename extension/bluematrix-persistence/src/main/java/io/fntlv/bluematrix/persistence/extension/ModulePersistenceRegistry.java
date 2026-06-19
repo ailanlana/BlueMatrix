@@ -42,20 +42,20 @@ public class ModulePersistenceRegistry {
         return getStorage(context.getInfo().id());
     }
 
+    public BlueStorage getStorage(String moduleId) {
+        BlueStorage storage = registeredStorages.get(moduleId);
+        if (storage == null) {
+            throw new IllegalStateException(missingStorageMessage(moduleId));
+        }
+        return storage;
+    }
+
     public File getModulePath(String moduleId) {
         return new File(new File(dataFolder, MODULES_DIRECTORY_NAME), moduleId);
     }
 
     public File getModuleDataPath(String moduleId) {
         return new File(getModulePath(moduleId), "data");
-    }
-
-    private BlueStorage getStorage(String moduleId) {
-        BlueStorage storage = registeredStorages.get(moduleId);
-        if (storage == null) {
-            throw new IllegalStateException(missingStorageMessage(moduleId));
-        }
-        return storage;
     }
 
     private BlueStorage registerStorage(String moduleId) {

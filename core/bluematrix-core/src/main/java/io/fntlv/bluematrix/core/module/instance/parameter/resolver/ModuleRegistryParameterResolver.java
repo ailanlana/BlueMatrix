@@ -1,8 +1,9 @@
-package io.fntlv.bluematrix.core.module.registration.instance.parameter.resolver;
+package io.fntlv.bluematrix.core.module.instance.parameter.resolver;
 
 import io.fntlv.bluematrix.core.module.ModuleRegistry;
-import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolver;
+import io.fntlv.bluematrix.core.module.instance.InjectContext;
+import io.fntlv.bluematrix.core.module.instance.ModuleInjectionContext;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 
 public class ModuleRegistryParameterResolver implements ModuleParameterResolver {
     private final ModuleRegistry moduleRegistry;
@@ -15,13 +16,14 @@ public class ModuleRegistryParameterResolver implements ModuleParameterResolver 
     }
 
     @Override
-    public boolean supports(Class<?> parameterType) {
-        return ModuleRegistry.class.isAssignableFrom(parameterType)
+    public boolean supports(Class<?> parameterType, InjectContext context) {
+        return context instanceof ModuleInjectionContext
+                && ModuleRegistry.class.isAssignableFrom(parameterType)
                 && parameterType.isAssignableFrom(moduleRegistry.getClass());
     }
 
     @Override
-    public Object resolve(Class<?> parameterType, ModuleCandidate candidate) {
+    public Object resolve(Class<?> parameterType, InjectContext context) {
         return moduleRegistry;
     }
 }

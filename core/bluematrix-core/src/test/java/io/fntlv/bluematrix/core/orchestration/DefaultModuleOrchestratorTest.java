@@ -8,7 +8,8 @@ import io.fntlv.bluematrix.core.event.ModuleEventBus;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
 import io.fntlv.bluematrix.core.module.registration.DefaultModuleRegistrar;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
-import io.fntlv.bluematrix.core.module.registration.instance.ModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.OtherInjectionContext;
 import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
 import io.fntlv.bluematrix.core.module.registration.resolver.TopologyDependencyResolver;
 import io.fntlv.bluematrix.core.module.storage.DefaultModuleRegistry;
@@ -120,12 +121,22 @@ class DefaultModuleOrchestratorTest {
 
         @Override
         public Module create(ModuleCandidate moduleCandidate) {
+            return createModule(moduleCandidate);
+        }
+
+        @Override
+        public Module createModule(ModuleCandidate moduleCandidate) {
             instantiateCount++;
             if (moduleCandidate.getModuleClass().equals(FailingModule.class)) {
                 throw new ModuleInstantiationException(moduleCandidate.getModuleInfo().id(),
                         new IllegalStateException("Expected register failure"));
             }
             return new WorkingModule();
+        }
+
+        @Override
+        public <T> T createOther(Class<T> type, OtherInjectionContext context) {
+            throw new UnsupportedOperationException("TestInstanceFactory only creates module instances");
         }
     }
 

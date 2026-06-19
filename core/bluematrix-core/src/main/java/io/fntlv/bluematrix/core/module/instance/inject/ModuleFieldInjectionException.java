@@ -1,4 +1,4 @@
-package io.fntlv.bluematrix.core.module.registration.instance.inject;
+package io.fntlv.bluematrix.core.module.instance.inject;
 
 public class ModuleFieldInjectionException extends RuntimeException {
 

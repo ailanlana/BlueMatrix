@@ -4,16 +4,20 @@ import io.fntlv.bluematrix.core.event.DefaultModuleEventBus;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
 import io.fntlv.bluematrix.core.module.Module;
+import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.ModuleRegistry;
-import io.fntlv.bluematrix.core.module.registration.instance.DefaultModuleInstanceFactory;
-import io.fntlv.bluematrix.core.module.registration.instance.inject.ModuleFieldInjectionException;
-import io.fntlv.bluematrix.core.module.registration.instance.inject.ModuleInject;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolutionException;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolver;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolverRegistry;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.resolver.ModuleEventBusParameterResolver;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.resolver.ModuleRegistryParameterResolver;
+import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.InjectContext;
+import io.fntlv.bluematrix.core.module.instance.ModuleInjectionContext;
+import io.fntlv.bluematrix.core.module.instance.OtherInjectionContext;
+import io.fntlv.bluematrix.core.module.instance.inject.ModuleFieldInjectionException;
+import io.fntlv.bluematrix.core.module.instance.inject.ModuleInject;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolutionException;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
+import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleEventBusParameterResolver;
+import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleRegistryParameterResolver;
 import io.fntlv.bluematrix.core.module.storage.DefaultModuleRegistry;
 import io.fntlv.bluematrix.core.module.storage.ModuleStore;
 import org.junit.jupiter.api.Test;
@@ -219,6 +223,49 @@ class DefaultModuleInstanceFactoryTest {
         assertEquals(1, registry.resolvers().size());
     }
 
+    @Test
+    void createsOtherInstanceWithOtherResolvers() {
+        OtherInjectionContext context = otherContext(new FactoryModule());
+        ModuleParameterResolverRegistry registry = new ModuleParameterResolverRegistry();
+        registry.register(new StringParameterResolver(OtherInjectionContext.class, "other-value"));
+        DefaultModuleInstanceFactory instanceFactory = new DefaultModuleInstanceFactory(registry);
+
+        OtherComponent component = instanceFactory.createOther(OtherComponent.class, context);
+
+        assertEquals("other-value", component.value);
+    }
+
+    @Test
+    void createModuleIgnoresOtherResolvers() {
+        ModuleCandidate candidate = candidate(StringConstructorModule.class);
+        ModuleParameterResolverRegistry registry = new ModuleParameterResolverRegistry();
+        registry.register(new StringParameterResolver(OtherInjectionContext.class, "other-value"));
+        DefaultModuleInstanceFactory instanceFactory = new DefaultModuleInstanceFactory(registry);
+
+        ModuleInstantiationException exception = assertThrows(ModuleInstantiationException.class,
+                () -> instanceFactory.createModule(candidate));
+
+        assertInstanceOf(ModuleParameterResolutionException.class, exception.getCause());
+    }
+
+    @Test
+    void createsOtherInstanceWithModuleConstructorParameter() {
+        FactoryModule module = new FactoryModule();
+
+        ModuleOwnerComponent component = factory.createOther(ModuleOwnerComponent.class, otherContext(module));
+
+        assertSame(module, component.module);
+    }
+
+    @Test
+    void injectsModuleInstanceIntoOtherField() {
+        FactoryModule module = new FactoryModule();
+
+        ModuleOwnerFieldComponent component = factory.createOther(ModuleOwnerFieldComponent.class, otherContext(module));
+
+        assertSame(module, component.module);
+    }
+
     private ModuleParameterResolverRegistry parameterResolvers(ModuleParameterResolver resolver) {
         ModuleParameterResolverRegistry registry = new ModuleParameterResolverRegistry();
         registry.register(resolver);
@@ -229,16 +276,61 @@ class DefaultModuleInstanceFactoryTest {
         return new ModuleCandidate(moduleClass, moduleClass.getAnnotation(ModuleInfo.class));
     }
 
+    private OtherInjectionContext otherContext(Module module) {
+        return OtherInjectionContext.from(new ModuleContext(module, module.getClass().getAnnotation(ModuleInfo.class)));
+    }
+
     private static class TestParameterResolver implements ModuleParameterResolver {
         @Override
-        public boolean supports(Class<?> parameterType) {
+        public boolean supports(Class<?> parameterType, InjectContext context) {
             return false;
         }
 
         @Override
-        public Object resolve(Class<?> parameterType, ModuleCandidate candidate) {
+        public Object resolve(Class<?> parameterType, InjectContext context) {
             return null;
         }
+    }
+
+    private static class StringParameterResolver implements ModuleParameterResolver {
+        private final Class<? extends InjectContext> contextType;
+        private final String value;
+
+        private StringParameterResolver(Class<? extends InjectContext> contextType, String value) {
+            this.contextType = contextType;
+            this.value = value;
+        }
+
+        @Override
+        public boolean supports(Class<?> parameterType, InjectContext context) {
+            return contextType.isInstance(context) && String.class.equals(parameterType);
+        }
+
+        @Override
+        public Object resolve(Class<?> parameterType, InjectContext context) {
+            return value;
+        }
+    }
+
+    private static class OtherComponent {
+        private final String value;
+
+        private OtherComponent(String value) {
+            this.value = value;
+        }
+    }
+
+    private static class ModuleOwnerComponent {
+        private final FactoryModule module;
+
+        private ModuleOwnerComponent(FactoryModule module) {
+            this.module = module;
+        }
+    }
+
+    private static class ModuleOwnerFieldComponent {
+        @ModuleInject
+        private FactoryModule module;
     }
 
     @ModuleInfo(id = "factory-module", name = "Factory Module")
@@ -259,6 +351,24 @@ class DefaultModuleInstanceFactoryTest {
     @ModuleInfo(id = "missing-no-argument-constructor", name = "Missing No Argument Constructor")
     public static class MissingNoArgumentConstructorModule implements Module {
         public MissingNoArgumentConstructorModule(String value) {
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "string-constructor", name = "String Constructor")
+    public static class StringConstructorModule implements Module {
+        public StringConstructorModule(String value) {
         }
 
         @Override

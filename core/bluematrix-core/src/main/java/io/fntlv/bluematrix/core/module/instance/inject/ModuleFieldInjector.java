@@ -1,8 +1,7 @@
-package io.fntlv.bluematrix.core.module.registration.instance.inject;
+package io.fntlv.bluematrix.core.module.instance.inject;
 
-import io.fntlv.bluematrix.core.module.Module;
-import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolverRegistry;
+import io.fntlv.bluematrix.core.module.instance.InjectContext;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -17,40 +16,40 @@ public class ModuleFieldInjector {
         this.parameterResolvers = parameterResolvers;
     }
 
-    public void inject(Module module, ModuleCandidate candidate) {
-        if (module == null) {
-            throw new IllegalArgumentException("module cannot be null");
+    public void inject(Object target, InjectContext context) {
+        if (target == null) {
+            throw new IllegalArgumentException("target cannot be null");
         }
-        if (candidate == null) {
-            throw new IllegalArgumentException("candidate cannot be null");
+        if (context == null) {
+            throw new IllegalArgumentException("context cannot be null");
         }
 
-        Class<?> type = module.getClass();
-        while (type != null && Module.class.isAssignableFrom(type)) {
-            injectDeclaredFields(module, candidate, type);
+        Class<?> type = target.getClass();
+        while (type != null && !Object.class.equals(type)) {
+            injectDeclaredFields(target, context, type);
             type = type.getSuperclass();
         }
     }
 
-    private void injectDeclaredFields(Module module, ModuleCandidate candidate, Class<?> type) {
+    private void injectDeclaredFields(Object target, InjectContext context, Class<?> type) {
         for (Field field : type.getDeclaredFields()) {
             if (!field.isAnnotationPresent(ModuleInject.class)) {
                 continue;
             }
-            injectField(module, candidate, field);
+            injectField(target, context, field);
         }
     }
 
-    private void injectField(Module module, ModuleCandidate candidate, Field field) {
+    private void injectField(Object target, InjectContext context, Field field) {
         validateField(field);
-        if (!parameterResolvers.supports(field.getType())) {
+        if (!parameterResolvers.supports(field.getType(), context)) {
             throw new ModuleFieldInjectionException("Unsupported module injection field: "
                     + field.getDeclaringClass().getName() + "#" + field.getName()
                     + " (" + field.getType().getName() + ")");
         }
         try {
             field.setAccessible(true);
-            field.set(module, parameterResolvers.resolve(field.getType(), candidate));
+            field.set(target, parameterResolvers.resolve(field.getType(), context));
         } catch (ModuleFieldInjectionException e) {
             throw e;
         } catch (RuntimeException e) {

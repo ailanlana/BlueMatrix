@@ -1,7 +1,8 @@
 package io.fntlv.bluematrix.sql.extension;
 
-import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolver;
+import io.fntlv.bluematrix.core.module.instance.InjectContext;
+import io.fntlv.bluematrix.core.module.instance.ModuleInjectionContext;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import io.fntlv.bluematrix.sql.core.BlueDatabase;
 
 public class SqlDatabaseResolver implements ModuleParameterResolver {
@@ -15,17 +16,18 @@ public class SqlDatabaseResolver implements ModuleParameterResolver {
     }
 
     @Override
-    public boolean supports(Class<?> parameterType) {
-        return BlueDatabase.class.isAssignableFrom(parameterType);
+    public boolean supports(Class<?> parameterType, InjectContext context) {
+        return context instanceof ModuleInjectionContext
+                && BlueDatabase.class.isAssignableFrom(parameterType);
     }
 
     @Override
-    public Object resolve(Class<?> parameterType, ModuleCandidate candidate) {
-        if (!BlueDatabaseSourceProvider.class.isAssignableFrom(candidate.getModuleClass())) {
+    public Object resolve(Class<?> parameterType, InjectContext context) {
+        if (!BlueDatabaseSourceProvider.class.isAssignableFrom(context.getModuleClass())) {
             throw new IllegalStateException("BlueDatabase injection requires module to implement "
-                    + "BlueDatabaseSourceProvider: " + candidate.getModuleInfo().id()
-                    + " (" + candidate.getModuleClass().getName() + ")");
+                    + "BlueDatabaseSourceProvider: " + context.getModuleInfo().id()
+                    + " (" + context.getModuleClass().getName() + ")");
         }
-        return sqlRegistry.getDatabase(candidate);
+        return sqlRegistry.getDatabase(context.getModuleInfo().id());
     }
 }

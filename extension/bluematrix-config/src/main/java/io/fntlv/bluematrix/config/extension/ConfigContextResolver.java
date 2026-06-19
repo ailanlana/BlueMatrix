@@ -1,8 +1,9 @@
 package io.fntlv.bluematrix.config.extension;
 
 import io.fntlv.bluematrix.config.extension.context.ModuleConfigContext;
-import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolver;
+import io.fntlv.bluematrix.core.module.instance.InjectContext;
+import io.fntlv.bluematrix.core.module.instance.ModuleInjectionContext;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 
 public class ConfigContextResolver implements ModuleParameterResolver {
     private final ModuleConfigRegistry configRegistry;
@@ -15,12 +16,13 @@ public class ConfigContextResolver implements ModuleParameterResolver {
     }
 
     @Override
-    public boolean supports(Class<?> parameterType) {
-        return ModuleConfigContext.class.isAssignableFrom(parameterType);
+    public boolean supports(Class<?> parameterType, InjectContext context) {
+        return context instanceof ModuleInjectionContext
+                && ModuleConfigContext.class.isAssignableFrom(parameterType);
     }
 
     @Override
-    public Object resolve(Class<?> parameterType, ModuleCandidate candidate) {
-        return configRegistry.getContext(candidate);
+    public Object resolve(Class<?> parameterType, InjectContext context) {
+        return configRegistry.getContext(context.getModuleInfo().id(), context.getModuleClass());
     }
 }

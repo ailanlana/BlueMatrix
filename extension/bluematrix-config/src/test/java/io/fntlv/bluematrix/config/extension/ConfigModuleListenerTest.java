@@ -21,9 +21,9 @@ import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleEnableEvent;
 import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleLoadEvent;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegisterEvent;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
-import io.fntlv.bluematrix.core.module.registration.instance.DefaultModuleInstanceFactory;
-import io.fntlv.bluematrix.core.module.registration.instance.inject.ModuleInject;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolverRegistry;
+import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.inject.ModuleInject;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -327,7 +327,7 @@ class ConfigModuleListenerTest {
     }
 
     private BlueMatrixContainerEvent.Created containerCreated(ModuleParameterResolverRegistry parameterResolvers) {
-        return new BlueMatrixContainerEvent.Created(parameterResolvers);
+        return new BlueMatrixContainerEvent.Created(parameterResolvers, new io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory(parameterResolvers));
     }
 
     @ModuleInfo(id = "configured", name = "Configured")

@@ -1,4 +1,4 @@
-package io.fntlv.bluematrix.core.module.registration.instance.parameter;
+package io.fntlv.bluematrix.core.module.instance.parameter;
 
 public class ModuleParameterResolutionException extends RuntimeException {
 

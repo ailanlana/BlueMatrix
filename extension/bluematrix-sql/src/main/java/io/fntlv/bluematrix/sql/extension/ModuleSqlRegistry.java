@@ -24,16 +24,14 @@ public class ModuleSqlRegistry {
     }
 
     public BlueDatabase getDatabase(ModuleCandidate candidate) {
-        String moduleId = candidate.getModuleInfo().id();
-        BlueDatabase database = registeredDatabases.get(moduleId);
-        if (database == null) {
-            throw new IllegalStateException(missingDatabaseMessage(moduleId));
-        }
-        return database;
+        return getDatabase(candidate.getModuleInfo().id());
     }
 
     public BlueDatabase getDatabase(ModuleContext context) {
-        String moduleId = context.getInfo().id();
+        return getDatabase(context.getInfo().id());
+    }
+
+    public BlueDatabase getDatabase(String moduleId) {
         BlueDatabase database = registeredDatabases.get(moduleId);
         if (database == null) {
             throw new IllegalStateException(missingDatabaseMessage(moduleId));

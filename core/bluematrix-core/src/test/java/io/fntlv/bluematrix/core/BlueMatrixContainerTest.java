@@ -12,6 +12,8 @@ import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionLoader;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
+import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.core.module.orchestration.DefaultModuleOrchestrator;
 import io.fntlv.bluematrix.core.module.orchestration.ModuleOrchestrator;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
@@ -28,6 +30,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -61,16 +64,32 @@ class BlueMatrixContainerTest {
     }
 
     @Test
+    void exposesParameterResolversAndInstanceFactory() {
+        BlueMatrixContainer blueMatrixContainer = BlueMatrixContainer.builder(tempDir)
+                .jarDirectory(tempDir)
+                .build();
+
+        ModuleParameterResolverRegistry parameterResolvers = blueMatrixContainer.getParameterResolvers();
+        ModuleInstanceFactory instanceFactory = blueMatrixContainer.getInstanceFactory();
+
+        assertNotNull(parameterResolvers);
+        assertNotNull(instanceFactory);
+    }
+
+    @Test
     void publishesContainerCreatedEventDuringBuild() {
         ContainerCreatedListener.receivedEvent = null;
 
-        BlueMatrixContainer.builder(tempDir)
+        BlueMatrixContainer blueMatrixContainer = BlueMatrixContainer.builder(tempDir)
                 .jarDirectory(tempDir)
                 .eventListener(new ContainerCreatedListener())
                 .build();
 
         assertNotNull(ContainerCreatedListener.receivedEvent);
         assertNotNull(ContainerCreatedListener.receivedEvent.getParameterResolvers());
+        assertNotNull(ContainerCreatedListener.receivedEvent.getInstanceFactory());
+        assertSame(blueMatrixContainer.getParameterResolvers(), ContainerCreatedListener.receivedEvent.getParameterResolvers());
+        assertSame(blueMatrixContainer.getInstanceFactory(), ContainerCreatedListener.receivedEvent.getInstanceFactory());
     }
 
     @Test

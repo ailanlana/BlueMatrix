@@ -16,9 +16,9 @@ import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleEnableEvent;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegisterEvent;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
-import io.fntlv.bluematrix.core.module.registration.instance.DefaultModuleInstanceFactory;
-import io.fntlv.bluematrix.core.module.registration.instance.inject.ModuleInject;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolverRegistry;
+import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.inject.ModuleInject;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.persistence.core.BlueStorage;
 import io.fntlv.bluematrix.persistence.core.BlueStorageSpec;
 import io.fntlv.bluematrix.persistence.core.descriptor.BlueEntity;
@@ -54,7 +54,7 @@ class PersistenceModuleListenerTest {
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
         ModuleCandidate candidate = candidate(StorageProviderModule.class);
 
-        listener.onContainerCreated(new BlueMatrixContainerEvent.Created(parameterResolvers));
+        listener.onContainerCreated(new BlueMatrixContainerEvent.Created(parameterResolvers, new io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory(parameterResolvers)));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
 
@@ -94,7 +94,7 @@ class PersistenceModuleListenerTest {
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
         ModuleCandidate candidate = candidate(ConstructorPersistenceModule.class);
 
-        listener.onContainerCreated(new BlueMatrixContainerEvent.Created(parameterResolvers));
+        listener.onContainerCreated(new BlueMatrixContainerEvent.Created(parameterResolvers, new io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory(parameterResolvers)));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
 
         assertFalse(registry.containsStorage(candidate));
@@ -327,7 +327,7 @@ class PersistenceModuleListenerTest {
     private <T extends Module> T createModule(PersistenceModuleListener listener, Class<T> type) {
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
         ModuleCandidate candidate = candidate(type);
-        listener.onContainerCreated(new BlueMatrixContainerEvent.Created(parameterResolvers));
+        listener.onContainerCreated(new BlueMatrixContainerEvent.Created(parameterResolvers, new io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory(parameterResolvers)));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
         return (T) new DefaultModuleInstanceFactory(parameterResolvers).create(candidate);
     }

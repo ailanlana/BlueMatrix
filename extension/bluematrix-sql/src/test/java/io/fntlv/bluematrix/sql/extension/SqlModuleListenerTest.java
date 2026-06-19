@@ -16,9 +16,9 @@ import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleEnableEvent;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegisterEvent;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
-import io.fntlv.bluematrix.core.module.registration.instance.DefaultModuleInstanceFactory;
-import io.fntlv.bluematrix.core.module.registration.instance.inject.ModuleInject;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolverRegistry;
+import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.inject.ModuleInject;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.sql.core.BlueDatabase;
 import io.fntlv.bluematrix.sql.core.BlueDatabaseSource;
 import org.junit.jupiter.api.Test;
@@ -254,7 +254,7 @@ class SqlModuleListenerTest {
     }
 
     private BlueMatrixContainerEvent.Created containerCreated(ModuleParameterResolverRegistry parameterResolvers) {
-        return new BlueMatrixContainerEvent.Created(parameterResolvers);
+        return new BlueMatrixContainerEvent.Created(parameterResolvers, new io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory(parameterResolvers));
     }
 
     private static void assertCauseMessageContains(Throwable throwable, String expected) {

@@ -1,7 +1,8 @@
 package io.fntlv.bluematrix.persistence.extension;
 
-import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
-import io.fntlv.bluematrix.core.module.registration.instance.parameter.ModuleParameterResolver;
+import io.fntlv.bluematrix.core.module.instance.InjectContext;
+import io.fntlv.bluematrix.core.module.instance.ModuleInjectionContext;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import io.fntlv.bluematrix.persistence.core.BlueStorage;
 
 public class PersistenceStorageResolver implements ModuleParameterResolver {
@@ -15,17 +16,18 @@ public class PersistenceStorageResolver implements ModuleParameterResolver {
     }
 
     @Override
-    public boolean supports(Class<?> parameterType) {
-        return BlueStorage.class.isAssignableFrom(parameterType);
+    public boolean supports(Class<?> parameterType, InjectContext context) {
+        return context instanceof ModuleInjectionContext
+                && BlueStorage.class.isAssignableFrom(parameterType);
     }
 
     @Override
-    public Object resolve(Class<?> parameterType, ModuleCandidate candidate) {
-        if (!BlueStorageSourceProvider.class.isAssignableFrom(candidate.getModuleClass())) {
+    public Object resolve(Class<?> parameterType, InjectContext context) {
+        if (!BlueStorageSourceProvider.class.isAssignableFrom(context.getModuleClass())) {
             throw new IllegalStateException("BlueStorage injection requires module to implement "
-                    + "BlueStorageSourceProvider: " + candidate.getModuleInfo().id()
-                    + " (" + candidate.getModuleClass().getName() + ")");
+                    + "BlueStorageSourceProvider: " + context.getModuleInfo().id()
+                    + " (" + context.getModuleClass().getName() + ")");
         }
-        return persistenceRegistry.getStorage(candidate);
+        return persistenceRegistry.getStorage(context.getModuleInfo().id());
     }
 }

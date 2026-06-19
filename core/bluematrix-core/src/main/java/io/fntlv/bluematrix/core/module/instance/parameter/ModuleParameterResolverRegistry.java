@@ -1,6 +1,7 @@
-package io.fntlv.bluematrix.core.module.registration.instance.parameter;
+package io.fntlv.bluematrix.core.module.instance.parameter;
 
-import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.instance.InjectContext;
+import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleInstanceParameterResolver;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -10,7 +11,9 @@ public class ModuleParameterResolverRegistry {
     private final List<ModuleParameterResolver> resolvers = new ArrayList<>();
 
     public static ModuleParameterResolverRegistry createDefault() {
-        return new ModuleParameterResolverRegistry();
+        ModuleParameterResolverRegistry registry = new ModuleParameterResolverRegistry();
+        registry.register(new ModuleInstanceParameterResolver());
+        return registry;
     }
 
     public void register(ModuleParameterResolver resolver) {
@@ -33,25 +36,25 @@ public class ModuleParameterResolverRegistry {
         return true;
     }
 
-    public boolean supports(Class<?> parameterType) {
-        return findResolver(parameterType) != null;
+    public boolean supports(Class<?> parameterType, InjectContext context) {
+        return findResolver(parameterType, context) != null;
     }
 
-    public Object resolve(Class<?> parameterType, ModuleCandidate candidate) {
-        ModuleParameterResolver resolver = findResolver(parameterType);
+    public Object resolve(Class<?> parameterType, InjectContext context) {
+        ModuleParameterResolver resolver = findResolver(parameterType, context);
         if (resolver == null) {
             throw new ModuleParameterResolutionException("Unsupported module constructor parameter: " + parameterType.getName());
         }
-        return resolver.resolve(parameterType, candidate);
+        return resolver.resolve(parameterType, context);
     }
 
     public List<ModuleParameterResolver> resolvers() {
         return Collections.unmodifiableList(resolvers);
     }
 
-    private ModuleParameterResolver findResolver(Class<?> parameterType) {
+    private ModuleParameterResolver findResolver(Class<?> parameterType, InjectContext context) {
         for (ModuleParameterResolver resolver : resolvers) {
-            if (resolver.supports(parameterType)) {
+            if (resolver.supports(parameterType, context)) {
                 return resolver;
             }
         }
