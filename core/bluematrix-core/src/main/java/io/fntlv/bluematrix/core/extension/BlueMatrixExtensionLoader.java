@@ -34,7 +34,7 @@ public final class BlueMatrixExtensionLoader {
         this(resolveClassLoader());
     }
 
-    BlueMatrixExtensionLoader(ClassLoader classLoader) {
+    public BlueMatrixExtensionLoader(ClassLoader classLoader) {
         if (classLoader == null) {
             throw new IllegalArgumentException("classLoader cannot be null");
         }

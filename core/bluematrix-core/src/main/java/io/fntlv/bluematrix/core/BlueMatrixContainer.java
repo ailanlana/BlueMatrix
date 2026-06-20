@@ -68,7 +68,25 @@ public final class BlueMatrixContainer {
         if (dataFolder == null) {
             throw new IllegalArgumentException("dataFolder cannot be null");
         }
-        return new Builder(dataFolder);
+        return new Builder(dataFolder, defaultClassLoader());
+    }
+
+    public static Builder builder(File dataFolder, ClassLoader classLoader) {
+        if (dataFolder == null) {
+            throw new IllegalArgumentException("dataFolder cannot be null");
+        }
+        if (classLoader == null) {
+            throw new IllegalArgumentException("classLoader cannot be null");
+        }
+        return new Builder(dataFolder, classLoader);
+    }
+
+    private static ClassLoader defaultClassLoader() {
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        if (classLoader == null) {
+            classLoader = BlueMatrixContainer.class.getClassLoader();
+        }
+        return classLoader;
     }
 
     private void registerListeners(List<Object> eventListeners) {
@@ -102,15 +120,17 @@ public final class BlueMatrixContainer {
     public static final class Builder {
         @Getter
         private final File dataFolder;
+        private final ClassLoader classLoader;
         private final List<ModuleProvider> moduleProviders = new ArrayList<>();
         private final List<Object> eventListeners = new ArrayList<>();
         private final List<ModuleParameterResolver> parameterResolvers = new ArrayList<>();
         private final BlueMatrixLibraryLoader libraryLoader;
         private boolean built;
 
-        private Builder(File dataFolder) {
+        private Builder(File dataFolder, ClassLoader classLoader) {
             this.dataFolder = dataFolder;
-            this.libraryLoader = new BlueMatrixLibraryLoader(dataFolder, BlueMatrixContainer.class.getClassLoader());
+            this.classLoader = classLoader;
+            this.libraryLoader = new BlueMatrixLibraryLoader(dataFolder, classLoader);
         }
 
         public Builder packageScan(String packagePath) {
@@ -193,7 +213,7 @@ public final class BlueMatrixContainer {
                 throw new BlueMatrixContainerException("BlueMatrixContainer.Builder cannot be reused");
             }
             built = true;
-            BlueMatrixExtensionLoader extensionLoader = new BlueMatrixExtensionLoader().load();
+            BlueMatrixExtensionLoader extensionLoader = new BlueMatrixExtensionLoader(classLoader).load();
             try {
                 this.libraryLoader.loadCoreLibraries();
             } catch (RuntimeException e) {
