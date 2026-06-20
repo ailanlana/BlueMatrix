@@ -13,6 +13,7 @@ import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.core.module.orchestration.DefaultModuleOrchestrator;
 import io.fntlv.bluematrix.core.module.orchestration.ModuleOrchestrator;
@@ -77,19 +78,14 @@ class BlueMatrixContainerTest {
     }
 
     @Test
-    void publishesContainerCreatedEventDuringBuild() {
-        ContainerCreatedListener.receivedEvent = null;
-
+    void builderRegistersParameterResolver() {
+        TestParameterResolver resolver = new TestParameterResolver();
         BlueMatrixContainer blueMatrixContainer = BlueMatrixContainer.builder(tempDir)
                 .jarDirectory(tempDir)
-                .eventListener(new ContainerCreatedListener())
+                .parameterResolver(resolver)
                 .build();
 
-        assertNotNull(ContainerCreatedListener.receivedEvent);
-        assertNotNull(ContainerCreatedListener.receivedEvent.getParameterResolvers());
-        assertNotNull(ContainerCreatedListener.receivedEvent.getInstanceFactory());
-        assertSame(blueMatrixContainer.getParameterResolvers(), ContainerCreatedListener.receivedEvent.getParameterResolvers());
-        assertSame(blueMatrixContainer.getInstanceFactory(), ContainerCreatedListener.receivedEvent.getInstanceFactory());
+        assertTrue(blueMatrixContainer.getParameterResolvers().resolvers().contains(resolver));
     }
 
     @Test
@@ -686,12 +682,15 @@ class BlueMatrixContainerTest {
         }
     }
 
-    public static final class ContainerCreatedListener {
-        private static BlueMatrixContainerEvent.Created receivedEvent;
+    private static final class TestParameterResolver implements ModuleParameterResolver {
+        @Override
+        public boolean supports(Class<?> parameterType, io.fntlv.bluematrix.core.module.instance.InjectContext context) {
+            return false;
+        }
 
-        @ModuleEventListener
-        public void onContainerCreated(BlueMatrixContainerEvent.Created event) {
-            receivedEvent = event;
+        @Override
+        public Object resolve(Class<?> parameterType, io.fntlv.bluematrix.core.module.instance.InjectContext context) {
+            return null;
         }
     }
 

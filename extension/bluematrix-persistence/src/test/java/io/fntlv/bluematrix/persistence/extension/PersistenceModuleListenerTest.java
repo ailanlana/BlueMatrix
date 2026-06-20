@@ -7,7 +7,6 @@ import br.com.finalcraft.everydatabase.modules.memory.InMemoryConfig;
 import br.com.finalcraft.everydatabase.modules.mongo.MongoConfig;
 import br.com.finalcraft.everydatabase.modules.sql.SqlConfig;
 import br.com.finalcraft.everydatabase.modules.sql.PoolTuning;
-import io.fntlv.bluematrix.core.BlueMatrixContainerEvent;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
@@ -48,13 +47,13 @@ class PersistenceModuleListenerTest {
     private static final File DATA_FOLDER = new File("build/test-data/persistence");
 
     @Test
-    void containerCreatedAddsBlueStorageConstructorParameterResolver() {
+    void resolverInjectsBlueStorageConstructorParameter() {
         ModulePersistenceRegistry registry = new ModulePersistenceRegistry(DATA_FOLDER);
         PersistenceModuleListener listener = new PersistenceModuleListener(registry);
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
         ModuleCandidate candidate = candidate(StorageProviderModule.class);
 
-        listener.onContainerCreated(new BlueMatrixContainerEvent.Created(parameterResolvers, new io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory(parameterResolvers)));
+        parameterResolvers.registerIfAbsent(new PersistenceStorageResolver(registry));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
 
@@ -94,7 +93,7 @@ class PersistenceModuleListenerTest {
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
         ModuleCandidate candidate = candidate(ConstructorPersistenceModule.class);
 
-        listener.onContainerCreated(new BlueMatrixContainerEvent.Created(parameterResolvers, new io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory(parameterResolvers)));
+        parameterResolvers.registerIfAbsent(new PersistenceStorageResolver(registry));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
 
         assertFalse(registry.containsStorage(candidate));
@@ -109,7 +108,7 @@ class PersistenceModuleListenerTest {
     void moduleWithSourceProviderInitializesInjectedStorage() {
         TestModulePersistenceRegistry registry = new TestModulePersistenceRegistry();
         PersistenceModuleListener listener = new PersistenceModuleListener(registry);
-        StorageProviderModule module = createModule(listener, StorageProviderModule.class);
+        StorageProviderModule module = createModule(listener, registry, StorageProviderModule.class);
         ModuleContext context = context(module);
         RecordingBlueStorage storage = (RecordingBlueStorage) registry.getStorage(context);
 
@@ -129,7 +128,7 @@ class PersistenceModuleListenerTest {
     void sourceProviderCanInjectBlueStorageField() {
         TestModulePersistenceRegistry registry = new TestModulePersistenceRegistry();
         PersistenceModuleListener listener = new PersistenceModuleListener(registry);
-        FieldPersistenceModule module = createModule(listener, FieldPersistenceModule.class);
+        FieldPersistenceModule module = createModule(listener, registry, FieldPersistenceModule.class);
         ModuleContext context = context(module);
         RecordingBlueStorage storage = (RecordingBlueStorage) registry.getStorage(context);
 
@@ -287,7 +286,7 @@ class PersistenceModuleListenerTest {
     void disableClosesInitializedStorage() {
         TestModulePersistenceRegistry registry = new TestModulePersistenceRegistry();
         PersistenceModuleListener listener = new PersistenceModuleListener(registry);
-        StorageProviderModule module = createModule(listener, StorageProviderModule.class);
+        StorageProviderModule module = createModule(listener, registry, StorageProviderModule.class);
         ModuleContext context = context(module);
         RecordingBlueStorage storage = (RecordingBlueStorage) registry.getStorage(context);
 
@@ -324,10 +323,12 @@ class PersistenceModuleListenerTest {
     }
 
     @SuppressWarnings("unchecked")
-    private <T extends Module> T createModule(PersistenceModuleListener listener, Class<T> type) {
+    private <T extends Module> T createModule(PersistenceModuleListener listener,
+                                              ModulePersistenceRegistry registry,
+                                              Class<T> type) {
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
         ModuleCandidate candidate = candidate(type);
-        listener.onContainerCreated(new BlueMatrixContainerEvent.Created(parameterResolvers, new io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory(parameterResolvers)));
+        parameterResolvers.registerIfAbsent(new PersistenceStorageResolver(registry));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
         return (T) new DefaultModuleInstanceFactory(parameterResolvers).create(candidate);
     }

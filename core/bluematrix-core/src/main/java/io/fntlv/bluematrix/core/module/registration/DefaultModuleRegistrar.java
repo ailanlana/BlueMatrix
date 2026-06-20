@@ -13,6 +13,7 @@ import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleEventBusParameterResolver;
+import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleInstanceFactoryParameterResolver;
 import io.fntlv.bluematrix.core.module.registration.resolver.DependencyResolver;
 import io.fntlv.bluematrix.core.module.registration.resolver.TopologyDependencyResolver;
 import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
@@ -86,7 +87,9 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
         if (parameterResolvers == null) {
             throw new IllegalArgumentException("parameterResolvers cannot be null");
         }
-        return new DefaultModuleInstanceFactory(parameterResolvers);
+        ModuleInstanceFactory instanceFactory = new DefaultModuleInstanceFactory(parameterResolvers);
+        parameterResolvers.register(new ModuleInstanceFactoryParameterResolver(instanceFactory));
+        return instanceFactory;
     }
 
     @Override

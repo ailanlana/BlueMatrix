@@ -7,7 +7,6 @@ import cc.carm.lib.easysql.api.builder.*;
 import cc.carm.lib.easysql.api.function.SQLBiFunction;
 import cc.carm.lib.easysql.api.function.SQLDebugHandler;
 import cc.carm.lib.easysql.api.function.SQLExceptionHandler;
-import io.fntlv.bluematrix.core.BlueMatrixContainerEvent;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
@@ -47,13 +46,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SqlModuleListenerTest {
 
     @Test
-    void containerCreatedAddsBlueDatabaseConstructorParameterResolver() {
+    void resolverInjectsBlueDatabaseConstructorParameter() {
         ModuleSqlRegistry registry = new ModuleSqlRegistry();
         SqlModuleListener listener = new SqlModuleListener(registry);
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
         ModuleCandidate candidate = candidate(SourceProviderModule.class);
 
-        listener.onContainerCreated(containerCreated(parameterResolvers));
+        parameterResolvers.registerIfAbsent(new SqlDatabaseResolver(registry));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
 
@@ -93,7 +92,7 @@ class SqlModuleListenerTest {
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
         ModuleCandidate candidate = candidate(ConstructorSqlModule.class);
 
-        listener.onContainerCreated(containerCreated(parameterResolvers));
+        parameterResolvers.registerIfAbsent(new SqlDatabaseResolver(registry));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
 
         assertFalse(registry.containsDatabase(candidate));
@@ -253,10 +252,6 @@ class SqlModuleListenerTest {
         return new ModuleContext(module, module.getClass().getAnnotation(ModuleInfo.class));
     }
 
-    private BlueMatrixContainerEvent.Created containerCreated(ModuleParameterResolverRegistry parameterResolvers) {
-        return new BlueMatrixContainerEvent.Created(parameterResolvers, new io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory(parameterResolvers));
-    }
-
     private static void assertCauseMessageContains(Throwable throwable, String expected) {
         Throwable current = throwable;
         while (current != null) {
@@ -280,7 +275,7 @@ class SqlModuleListenerTest {
                                               Class<T> type) {
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
         ModuleCandidate candidate = candidate(type);
-        listener.onContainerCreated(containerCreated(parameterResolvers));
+        parameterResolvers.registerIfAbsent(new SqlDatabaseResolver(registry));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
         return (T) new DefaultModuleInstanceFactory(parameterResolvers).create(candidate);
     }

@@ -4,7 +4,6 @@ import io.fntlv.bluematrix.config.core.file.ConfigFile;
 import io.fntlv.bluematrix.config.core.file.yaml.YamlConfigFileFormat;
 import io.fntlv.bluematrix.config.extension.context.ModuleConfigState;
 import io.fntlv.bluematrix.config.extension.register.ConfigRegisterProcessor;
-import io.fntlv.bluematrix.core.BlueMatrixContainerEvent;
 import io.fntlv.bluematrix.core.module.ModuleConditionOutcome;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.event.ModuleEventListener;
@@ -38,11 +37,6 @@ public class ConfigModuleListener {
     public ConfigModuleListener(ModuleConfigRegistry configRegistry, ConfigRegisterProcessor configRegisterProcessor) {
         this.configRegistry = configRegistry;
         this.configRegisterProcessor = configRegisterProcessor;
-    }
-
-    @ModuleEventListener
-    public void onContainerCreated(BlueMatrixContainerEvent.Created event) {
-        event.getParameterResolvers().registerIfAbsent(new ConfigContextResolver(configRegistry));
     }
 
     @ModuleEventListener

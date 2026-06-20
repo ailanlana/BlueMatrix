@@ -12,8 +12,10 @@ import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.registration.DefaultModuleRegistrar;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegistrar;
 import io.fntlv.bluematrix.core.library.ModuleLibraryLoadListener;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleEventBusParameterResolver;
+import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleInstanceFactoryParameterResolver;
 import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleRegistryParameterResolver;
 import io.fntlv.bluematrix.core.module.registration.provider.JarModuleProvider;
 import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
@@ -47,7 +49,9 @@ public final class BlueMatrixContainer {
         this.parameterResolvers = ModuleParameterResolverRegistry.createDefault();
         this.parameterResolvers.register(new ModuleRegistryParameterResolver(registry));
         this.parameterResolvers.register(new ModuleEventBusParameterResolver(eventBus));
+        registerParameterResolvers(builder.parameterResolvers);
         this.instanceFactory = new DefaultModuleInstanceFactory(parameterResolvers);
+        this.parameterResolvers.register(new ModuleInstanceFactoryParameterResolver(instanceFactory));
         ModuleRegistrar moduleRegistrar = new DefaultModuleRegistrar(
                 builder.moduleProviders,
                 new TopologyDependencyResolver(),
@@ -57,7 +61,6 @@ public final class BlueMatrixContainer {
         this.moduleOrchestrator = new DefaultModuleOrchestrator(moduleStore, moduleRegistrar, eventBus);
         registerListeners(builder.eventListeners);
         registerDefaultListeners(builder.libraryLoader);
-        eventBus.publish(new BlueMatrixContainerEvent.Created(parameterResolvers, instanceFactory));
         this.moduleOrchestrator.initialize();
     }
 
@@ -71,6 +74,12 @@ public final class BlueMatrixContainer {
     private void registerListeners(List<Object> eventListeners) {
         for (Object eventListener : eventListeners) {
             eventBus.registerListener(eventListener);
+        }
+    }
+
+    private void registerParameterResolvers(List<ModuleParameterResolver> resolvers) {
+        for (ModuleParameterResolver resolver : resolvers) {
+            parameterResolvers.registerIfAbsent(resolver);
         }
     }
 
@@ -95,6 +104,7 @@ public final class BlueMatrixContainer {
         private final File dataFolder;
         private final List<ModuleProvider> moduleProviders = new ArrayList<>();
         private final List<Object> eventListeners = new ArrayList<>();
+        private final List<ModuleParameterResolver> parameterResolvers = new ArrayList<>();
         private final BlueMatrixLibraryLoader libraryLoader;
         private boolean built;
 
@@ -124,6 +134,14 @@ public final class BlueMatrixContainer {
                 throw new IllegalArgumentException("listener cannot be null");
             }
             eventListeners.add(listener);
+            return this;
+        }
+
+        public Builder parameterResolver(ModuleParameterResolver resolver) {
+            if (resolver == null) {
+                throw new IllegalArgumentException("resolver cannot be null");
+            }
+            parameterResolvers.add(resolver);
             return this;
         }
 

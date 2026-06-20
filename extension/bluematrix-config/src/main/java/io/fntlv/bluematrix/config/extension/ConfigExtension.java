@@ -26,6 +26,7 @@ public final class ConfigExtension implements BlueMatrixExtension {
                         "com.google.code.gson:gson:2.11.0",
                         "com.google.gson.Gson"
                 )
+                .parameterResolver(new ConfigContextResolver(configRegistry))
                 .eventListener(new ConfigModuleListener(configRegistry));
     }
 

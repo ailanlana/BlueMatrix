@@ -1,6 +1,5 @@
 package io.fntlv.bluematrix.persistence.extension;
 
-import io.fntlv.bluematrix.core.BlueMatrixContainerEvent;
 import io.fntlv.bluematrix.core.event.ModuleEventListener;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
@@ -28,11 +27,6 @@ public class PersistenceModuleListener {
             throw new IllegalArgumentException("persistenceRegistry cannot be null");
         }
         this.persistenceRegistry = persistenceRegistry;
-    }
-
-    @ModuleEventListener
-    public void onContainerCreated(BlueMatrixContainerEvent.Created event) {
-        event.getParameterResolvers().registerIfAbsent(new PersistenceStorageResolver(persistenceRegistry));
     }
 
     @ModuleEventListener

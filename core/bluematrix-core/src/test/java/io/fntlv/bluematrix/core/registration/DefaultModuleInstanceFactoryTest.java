@@ -10,6 +10,7 @@ import io.fntlv.bluematrix.core.module.ModuleRegistry;
 import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.InjectContext;
 import io.fntlv.bluematrix.core.module.instance.ModuleInjectionContext;
+import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.OtherInjectionContext;
 import io.fntlv.bluematrix.core.module.instance.inject.ModuleFieldInjectionException;
 import io.fntlv.bluematrix.core.module.instance.inject.ModuleInject;
@@ -17,6 +18,7 @@ import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolut
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleEventBusParameterResolver;
+import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleInstanceFactoryParameterResolver;
 import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleRegistryParameterResolver;
 import io.fntlv.bluematrix.core.module.storage.DefaultModuleRegistry;
 import io.fntlv.bluematrix.core.module.storage.ModuleStore;
@@ -82,6 +84,18 @@ class DefaultModuleInstanceFactoryTest {
         Module module = eventBusFactory.create(candidate);
 
         assertSame(eventBus, ((ModuleEventBusConstructorModule) module).eventBus);
+    }
+
+    @Test
+    void injectsModuleInstanceFactoryConstructorParameter() {
+        ModuleCandidate candidate = candidate(ModuleInstanceFactoryConstructorModule.class);
+        ModuleParameterResolverRegistry registry = new ModuleParameterResolverRegistry();
+        DefaultModuleInstanceFactory instanceFactory = new DefaultModuleInstanceFactory(registry);
+        registry.register(new ModuleInstanceFactoryParameterResolver(instanceFactory));
+
+        Module module = instanceFactory.create(candidate);
+
+        assertSame(instanceFactory, ((ModuleInstanceFactoryConstructorModule) module).instanceFactory);
     }
 
     @Test
@@ -411,6 +425,27 @@ class DefaultModuleInstanceFactoryTest {
 
         public ModuleEventBusConstructorModule(ModuleEventBus eventBus) {
             this.eventBus = eventBus;
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "module-instance-factory-constructor", name = "Module Instance Factory Constructor")
+    public static class ModuleInstanceFactoryConstructorModule implements Module {
+        private final ModuleInstanceFactory instanceFactory;
+
+        public ModuleInstanceFactoryConstructorModule(ModuleInstanceFactory instanceFactory) {
+            this.instanceFactory = instanceFactory;
         }
 
         @Override

@@ -24,6 +24,7 @@ public final class SqlExtension implements BlueMatrixExtension {
                         "com.mysql:mysql-connector-j:9.4.0",
                         "com.mysql.cj.jdbc.Driver"
                 )
+                .parameterResolver(new SqlDatabaseResolver(sqlRegistry))
                 .eventListener(new SqlModuleListener(sqlRegistry));
     }
 }

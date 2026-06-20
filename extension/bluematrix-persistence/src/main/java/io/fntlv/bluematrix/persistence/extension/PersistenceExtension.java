@@ -19,6 +19,7 @@ public final class PersistenceExtension implements BlueMatrixExtension {
                         "com.mysql:mysql-connector-j:9.4.0",
                         "com.mysql.cj.jdbc.Driver"
                 )
+                .parameterResolver(new PersistenceStorageResolver(persistenceRegistry))
                 .eventListener(new PersistenceModuleListener(persistenceRegistry));
     }
 }

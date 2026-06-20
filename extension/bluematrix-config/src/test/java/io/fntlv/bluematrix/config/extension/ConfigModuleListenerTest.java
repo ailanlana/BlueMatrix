@@ -14,7 +14,6 @@ import io.fntlv.bluematrix.logging.BlueLoggerFactory;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.config.YamlConfigTestUtil;
-import io.fntlv.bluematrix.core.BlueMatrixContainerEvent;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleDisableEvent;
 import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleEnableEvent;
@@ -277,7 +276,7 @@ class ConfigModuleListenerTest {
     }
 
     @Test
-    void containerCreatedAddsModuleConfigContextConstructorParameterResolver() {
+    void resolverInjectsModuleConfigContextConstructorParameter() {
         ModuleConfigRegistry configRegistry = registry();
         ConfigModuleListener listener = new ConfigModuleListener(configRegistry);
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
@@ -286,7 +285,7 @@ class ConfigModuleListenerTest {
                 ConstructorContextModule.class.getAnnotation(ModuleInfo.class)
         );
 
-        listener.onContainerCreated(containerCreated(parameterResolvers));
+        parameterResolvers.registerIfAbsent(new ConfigContextResolver(configRegistry));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
 
@@ -305,7 +304,7 @@ class ConfigModuleListenerTest {
     }
 
     @Test
-    void containerCreatedAddsModuleConfigContextFieldInjectionResolver() {
+    void resolverInjectsModuleConfigContextField() {
         ModuleConfigRegistry configRegistry = registry();
         ConfigModuleListener listener = new ConfigModuleListener(configRegistry);
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
@@ -314,7 +313,7 @@ class ConfigModuleListenerTest {
                 FieldContextModule.class.getAnnotation(ModuleInfo.class)
         );
 
-        listener.onContainerCreated(containerCreated(parameterResolvers));
+        parameterResolvers.registerIfAbsent(new ConfigContextResolver(configRegistry));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
 
         FieldContextModule module = (FieldContextModule) new DefaultModuleInstanceFactory(parameterResolvers)
@@ -324,10 +323,6 @@ class ConfigModuleListenerTest {
 
         assertEquals("hello", module.configContext.get(ExampleConfig.class).message);
         assertSame(module.configContext, configRegistry.getContext(context));
-    }
-
-    private BlueMatrixContainerEvent.Created containerCreated(ModuleParameterResolverRegistry parameterResolvers) {
-        return new BlueMatrixContainerEvent.Created(parameterResolvers, new io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory(parameterResolvers));
     }
 
     @ModuleInfo(id = "configured", name = "Configured")

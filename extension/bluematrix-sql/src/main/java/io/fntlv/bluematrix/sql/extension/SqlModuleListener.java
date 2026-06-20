@@ -1,7 +1,6 @@
 package io.fntlv.bluematrix.sql.extension;
 
 import io.fntlv.bluematrix.core.event.ModuleEventListener;
-import io.fntlv.bluematrix.core.BlueMatrixContainerEvent;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleDisableEvent;
@@ -24,11 +23,6 @@ public class SqlModuleListener {
         }
         this.sqlRegistry = sqlRegistry;
         this.tableInitializer = new SqlTableInitializer();
-    }
-
-    @ModuleEventListener
-    public void onContainerCreated(BlueMatrixContainerEvent.Created event) {
-        event.getParameterResolvers().registerIfAbsent(new SqlDatabaseResolver(sqlRegistry));
     }
 
     @ModuleEventListener
