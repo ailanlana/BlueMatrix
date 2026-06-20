@@ -34,6 +34,7 @@ public class ModuleCandidate {
         ConfigurationBuilder configuration = new ConfigurationBuilder()
                 .setScanners(
                         Scanners.SubTypes.filterResultsBy(c -> true),
+                        Scanners.TypesAnnotated,
                         Scanners.MethodsAnnotated
                 );
         for (String scanPackage : scanPackages) {
