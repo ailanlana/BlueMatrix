@@ -3,7 +3,7 @@ plugins {
 }
 
 dependencies {
-    api 'net.byteflux:libby-core:1.2.0'
+    implementation 'net.byteflux:libby-core:1.2.0'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
 }
