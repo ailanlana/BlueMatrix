@@ -28,6 +28,7 @@ import io.fntlv.bluematrix.loader.library.BlueLibraryFactory;
 import lombok.Getter;
 
 import java.io.File;
+import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -83,7 +84,7 @@ public final class BlueMatrixContainer {
 
     private static ClassLoader defaultClassLoader() {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        if (classLoader == null) {
+        if (!(classLoader instanceof URLClassLoader)) {
             classLoader = BlueMatrixContainer.class.getClassLoader();
         }
         return classLoader;
