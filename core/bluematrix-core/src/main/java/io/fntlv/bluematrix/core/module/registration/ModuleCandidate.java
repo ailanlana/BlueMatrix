@@ -4,7 +4,9 @@ import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import lombok.Getter;
 import org.reflections.Reflections;
+import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;
+import org.reflections.util.FilterBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,10 +30,18 @@ public class ModuleCandidate {
 
     private static Reflections createReflections(Class<? extends Module> moduleClass, ModuleInfo moduleInfo) {
         String[] scanPackages = resolveScanPackages(moduleClass, moduleInfo);
-        if (scanPackages.length == 1) {
-            return new Reflections(scanPackages[0]);
+        FilterBuilder inputFilter = new FilterBuilder();
+        ConfigurationBuilder configuration = new ConfigurationBuilder()
+                .setScanners(
+                        Scanners.SubTypes.filterResultsBy(c -> true),
+                        Scanners.MethodsAnnotated
+                );
+        for (String scanPackage : scanPackages) {
+            inputFilter.includePackage(scanPackage);
+            configuration.forPackage(scanPackage, moduleClass.getClassLoader());
         }
-        return new Reflections(new ConfigurationBuilder().forPackages(scanPackages));
+        configuration.filterInputsBy(inputFilter);
+        return new Reflections(configuration);
     }
 
     private static String[] resolveScanPackages(Class<? extends Module> moduleClass, ModuleInfo moduleInfo) {
