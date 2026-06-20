@@ -21,6 +21,7 @@ import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleLoadEvent;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegisterEvent;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.OtherInjectionContext;
 import io.fntlv.bluematrix.core.module.instance.inject.ModuleInject;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import org.junit.jupiter.api.AfterEach;
@@ -325,6 +326,54 @@ class ConfigModuleListenerTest {
         assertSame(module.configContext, configRegistry.getContext(context));
     }
 
+    @Test
+    void resolverInjectsModuleConfigContextIntoOtherConstructorParameter() {
+        ModuleConfigRegistry configRegistry = registry();
+        ConfigModuleListener listener = new ConfigModuleListener(configRegistry);
+        ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
+        ModuleCandidate candidate = new ModuleCandidate(
+                ConfiguredModule.class,
+                ConfiguredModule.class.getAnnotation(ModuleInfo.class)
+        );
+
+        parameterResolvers.registerIfAbsent(new ConfigContextResolver(configRegistry));
+        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
+
+        ConfiguredModule module = new ConfiguredModule();
+        ModuleContext context = new ModuleContext(module, candidate);
+        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
+
+        OtherConstructorComponent component = new DefaultModuleInstanceFactory(parameterResolvers)
+                .createOther(OtherConstructorComponent.class, OtherInjectionContext.from(context));
+
+        assertSame(configRegistry.getContext(context), component.configContext);
+        assertEquals("hello", component.configContext.get(ExampleConfig.class).message);
+    }
+
+    @Test
+    void resolverInjectsModuleConfigContextIntoOtherField() {
+        ModuleConfigRegistry configRegistry = registry();
+        ConfigModuleListener listener = new ConfigModuleListener(configRegistry);
+        ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
+        ModuleCandidate candidate = new ModuleCandidate(
+                ConfiguredModule.class,
+                ConfiguredModule.class.getAnnotation(ModuleInfo.class)
+        );
+
+        parameterResolvers.registerIfAbsent(new ConfigContextResolver(configRegistry));
+        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
+
+        ConfiguredModule module = new ConfiguredModule();
+        ModuleContext context = new ModuleContext(module, candidate);
+        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
+
+        OtherFieldComponent component = new DefaultModuleInstanceFactory(parameterResolvers)
+                .createOther(OtherFieldComponent.class, OtherInjectionContext.from(context));
+
+        assertSame(configRegistry.getContext(context), component.configContext);
+        assertEquals("hello", component.configContext.get(ExampleConfig.class).message);
+    }
+
     @ModuleInfo(id = "configured", name = "Configured")
     private static class ConfiguredModule implements Module {
         @Override
@@ -422,6 +471,19 @@ class ConfigModuleListenerTest {
         @Override
         public void onDisable() {
         }
+    }
+
+    private static class OtherConstructorComponent {
+        private final ModuleConfigContext configContext;
+
+        private OtherConstructorComponent(ModuleConfigContext configContext) {
+            this.configContext = configContext;
+        }
+    }
+
+    private static class OtherFieldComponent {
+        @ModuleInject
+        private ModuleConfigContext configContext;
     }
 
     @ConfigRegister
