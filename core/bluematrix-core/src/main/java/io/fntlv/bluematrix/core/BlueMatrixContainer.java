@@ -23,12 +23,12 @@ import io.fntlv.bluematrix.core.module.registration.provider.PackageModuleProvid
 import io.fntlv.bluematrix.core.module.registration.resolver.TopologyDependencyResolver;
 import io.fntlv.bluematrix.core.module.storage.DefaultModuleRegistry;
 import io.fntlv.bluematrix.core.module.storage.ModuleStore;
+import io.fntlv.bluematrix.loader.BlueClassLoaderSupport;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
 import io.fntlv.bluematrix.loader.library.BlueLibraryFactory;
 import lombok.Getter;
 
 import java.io.File;
-import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -84,7 +84,7 @@ public final class BlueMatrixContainer {
 
     private static ClassLoader defaultClassLoader() {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        if (!(classLoader instanceof URLClassLoader)) {
+        if (classLoader == null) {
             classLoader = BlueMatrixContainer.class.getClassLoader();
         }
         return classLoader;
@@ -130,8 +130,8 @@ public final class BlueMatrixContainer {
 
         private Builder(File dataFolder, ClassLoader classLoader) {
             this.dataFolder = dataFolder;
-            this.classLoader = classLoader;
-            this.libraryLoader = new BlueMatrixLibraryLoader(dataFolder, classLoader);
+            this.classLoader = BlueClassLoaderSupport.ensureUrlClassLoader(classLoader);
+            this.libraryLoader = new BlueMatrixLibraryLoader(dataFolder, this.classLoader);
         }
 
         public Builder packageScan(String packagePath) {
@@ -146,7 +146,7 @@ public final class BlueMatrixContainer {
             if (jarDirectory == null) {
                 throw new IllegalArgumentException("jarDirectory cannot be null");
             }
-            moduleProviders.add(new JarModuleProvider(jarDirectory));
+            moduleProviders.add(new JarModuleProvider(jarDirectory, classLoader));
             return this;
         }
 

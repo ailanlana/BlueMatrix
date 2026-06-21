@@ -110,9 +110,7 @@ public class BlueLibraryManager {
         if (libsFolderName == null || libsFolderName.trim().isEmpty()) {
             throw new IllegalArgumentException("libsFolderName cannot be blank");
         }
-        if (!(classLoader instanceof URLClassLoader)) {
-            throw new BlueMatrixLoaderException("Library loading requires a URLClassLoader target");
-        }
+        BlueClassLoaderSupport.requireUrlClassLoader(classLoader);
     }
 
     private static final class DelegateLibraryManager extends LibraryManager {

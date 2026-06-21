@@ -6,15 +6,18 @@ import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryException;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.loader.BlueClassLoaderSupport;
+import io.fntlv.bluematrix.loader.BlueMatrixLoaderException;
 
 import java.io.File;
-import java.lang.reflect.Modifier;
 import java.net.URL;
-import java.net.URLClassLoader;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
@@ -22,9 +25,22 @@ public class JarModuleProvider implements ModuleProvider {
     private static final BlueLogger LOGGER = BlueLoggerFactory.getLogger(JarModuleProvider.class);
 
     private final File jarDirectory;
+    private final ClassLoader classLoader;
+    private final Set<File> loadedJarFiles = new HashSet<>();
 
     public JarModuleProvider(File jarDirectory) {
+        this(jarDirectory, BlueClassLoaderSupport.ensureUrlClassLoader(JarModuleProvider.class.getClassLoader()));
+    }
+
+    public JarModuleProvider(File jarDirectory, ClassLoader classLoader) {
+        if (jarDirectory == null) {
+            throw new IllegalArgumentException("jarDirectory cannot be null");
+        }
+        if (classLoader == null) {
+            throw new IllegalArgumentException("classLoader cannot be null");
+        }
         this.jarDirectory = jarDirectory;
+        this.classLoader = classLoader;
     }
 
     @Override
@@ -70,10 +86,7 @@ public class JarModuleProvider implements ModuleProvider {
     private List<ModuleCandidate> discoverModulesInJar(File jarFile) {
         List<ModuleCandidate> discoveredModules = new ArrayList<>();
         try {
-            URLClassLoader classLoader = new URLClassLoader(
-                    new URL[]{jarFile.toURI().toURL()},
-                    JarModuleProvider.class.getClassLoader()
-            );
+            addJarToClasspath(jarFile);
             try (JarFile jar = new JarFile(jarFile)) {
                 List<JarEntry> classEntries = new ArrayList<>();
                 jar.stream()
@@ -90,6 +103,21 @@ public class JarModuleProvider implements ModuleProvider {
             throw new ModuleDiscoveryException("Failed to discover modules from jar: " + jarFile.getAbsolutePath(), e);
         }
         return discoveredModules;
+    }
+
+    private void addJarToClasspath(File jarFile) {
+        try {
+            File normalizedJarFile = jarFile.getCanonicalFile();
+            if (!loadedJarFiles.add(normalizedJarFile)) {
+                return;
+            }
+            URL jarUrl = normalizedJarFile.toURI().toURL();
+            BlueClassLoaderSupport.addUrl(classLoader, jarUrl);
+        } catch (BlueMatrixLoaderException e) {
+            throw new ModuleDiscoveryException("Failed to add jar module to classpath: " + jarFile.getAbsolutePath(), e);
+        } catch (Exception e) {
+            throw new ModuleDiscoveryException("Failed to prepare jar module classpath: " + jarFile.getAbsolutePath(), e);
+        }
     }
 
     private java.util.Optional<ModuleCandidate> discoverModuleClass(File jarFile, ClassLoader classLoader, JarEntry entry) {
@@ -114,10 +142,21 @@ public class JarModuleProvider implements ModuleProvider {
                     "Failed to inspect class in jar: {} -> {} - {}",
                     jarFile.getName(),
                     className,
-                    exception.getMessage()
+                    describe(e)
             );
             return java.util.Optional.empty();
         }
+    }
+
+    private String describe(Throwable throwable) {
+        if (throwable == null) {
+            return "unknown error";
+        }
+        String message = throwable.getMessage();
+        if (message == null || message.trim().isEmpty()) {
+            return throwable.getClass().getName();
+        }
+        return throwable.getClass().getName() + ": " + message;
     }
 
     private boolean isModuleClass(Class<?> clazz) {
