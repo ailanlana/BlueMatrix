@@ -6,7 +6,7 @@ import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionContext;
 import io.fntlv.bluematrix.loader.library.BlueLibraryFactory;
 
 public final class PersistenceExtension implements BlueMatrixExtension {
-    private static final String EVERY_DATABASE_CORE = "br.com.finalcraft.everydatabase:everydatabase-core:1.0.3";
+    private static final String EVERY_DATABASE_CORE = "br.com.finalcraft.everydatabase:everydatabase-core:1.0.4";
     private static final String HIKARI_CP = "com.zaxxer:HikariCP:4.0.3";
     private static final String HIKARI_PACKAGE = "com.zaxxer.hikari";
     private static final String RELOCATED_HIKARI_PACKAGE = "io.fntlv.bluematrix.persistence.libs.hikari";
