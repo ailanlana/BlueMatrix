@@ -45,7 +45,7 @@ public class ConfigModuleListener {
     @ModuleEventListener
     public void onLoadPre(ModuleLoadEvent.Pre event) {
         ModuleContext context = event.getContext();
-        String moduleId = context.getInfo().id();
+        String moduleId = context.id();
         try {
             ModuleConfigLoadResult result = configLifecycle.load(context);
             if (!result.moduleEnabled()) {
@@ -61,7 +61,7 @@ public class ConfigModuleListener {
 
     @ModuleEventListener
     public void onEnablePre(ModuleEnableEvent.Pre event) {
-        String moduleId = event.getContext().getInfo().id();
+        String moduleId = event.getContext().id();
         if (disabledModules.contains(DisabledModule.of(moduleId))) {
             event.cancel(ModuleConditionOutcome.noMatch("config", "Module disabled by configuration"));
         }
@@ -69,17 +69,17 @@ public class ConfigModuleListener {
 
     @ModuleEventListener
     public void onEnablePost(ModuleEnableEvent.Post event) {
-        clearModuleState(event.getContext().getInfo().id());
+        clearModuleState(event.getContext().id());
     }
 
     @ModuleEventListener
     public void onEnableSkipped(ModuleEnableEvent.Skipped event) {
-        clearModuleState(event.getContext().getInfo().id());
+        clearModuleState(event.getContext().id());
     }
 
     @ModuleEventListener
     public void onEnableFailed(ModuleEnableEvent.Failed event) {
-        clearModuleState(event.getContext().getInfo().id());
+        clearModuleState(event.getContext().id());
     }
 
     @ModuleEventListener
@@ -93,7 +93,7 @@ public class ConfigModuleListener {
     }
 
     private void saveConfig(ModuleContext context) {
-        String moduleId = context.getInfo().id();
+        String moduleId = context.id();
         try {
             configLifecycle.save(context);
         } catch (RuntimeException e) {

@@ -6,6 +6,7 @@ import io.fntlv.bluematrix.core.event.ModuleEventListener;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegisterEvent;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
+import io.fntlv.bluematrix.core.module.ModuleReflectionsFactory;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryException;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleRegistrationException;
@@ -27,12 +28,10 @@ import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import org.reflections.Reflections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -48,8 +47,8 @@ class DefaultModuleRegistrarTest {
         List<ModuleContext> contexts = registrar.register().contexts();
 
         assertEquals(2, contexts.size());
-        assertEquals("first", contexts.get(0).getInfo().id());
-        assertEquals("second", contexts.get(1).getInfo().id());
+        assertEquals("first", contexts.get(0).id());
+        assertEquals("second", contexts.get(1).id());
     }
 
     @Test
@@ -100,7 +99,7 @@ class DefaultModuleRegistrarTest {
         List<ModuleContext> contexts = registrar.register().contexts();
 
         assertEquals(1, contexts.size());
-        assertEquals("first", contexts.get(0).getInfo().id());
+        assertEquals("first", contexts.get(0).id());
     }
 
     @Test
@@ -129,7 +128,7 @@ class DefaultModuleRegistrarTest {
         List<ModuleContext> contexts = registrar.register().contexts();
 
         assertEquals(1, contexts.size());
-        assertEquals("first", contexts.get(0).getInfo().id());
+        assertEquals("first", contexts.get(0).id());
     }
 
     @Test
@@ -218,37 +217,37 @@ class DefaultModuleRegistrarTest {
         assertEquals("first", listener.moduleId);
         assertEquals(0, listener.instantiateCountWhenPrePublished);
         assertEquals(1, listener.instantiateCountWhenPostPublished);
-        assertSame(listener.preCandidate.getReflections(), contexts.get(0).getReflections());
+        assertNotNull(contexts.get(0).getReflections());
     }
 
     @Test
-    void moduleContextUsesCandidateReflections() {
+    void moduleContextCreatesReflectionsFromCandidateDescriptor() {
         FirstModule module = new FirstModule();
-        Reflections reflections = new Reflections(FirstModule.class.getPackage().getName());
         ModuleCandidate candidate = new ModuleCandidate(
                 FirstModule.class,
-                FirstModule.class.getAnnotation(ModuleInfo.class),
-                reflections
+                FirstModule.class.getAnnotation(ModuleInfo.class)
         );
 
         ModuleContext context = new ModuleContext(module, candidate);
 
-        assertSame(reflections, context.getReflections());
+        assertNotNull(context.getReflections());
     }
 
     @Test
-    void candidateUsesConfiguredScanPackages() {
+    void moduleReflectionsFactoryUsesConfiguredScanPackages() {
         ModuleCandidate candidate = new ModuleCandidate(
                 ScanPackageModule.class,
                 ScanPackageModule.class.getAnnotation(ModuleInfo.class)
         );
 
-        assertTrue(candidate.getReflections().getSubTypesOf(ScanPackageType.class).contains(ScanPackageMarker.class));
+        assertTrue(ModuleReflectionsFactory.create(candidate.getModuleClass(), candidate.getDescriptor())
+                .getSubTypesOf(ScanPackageType.class)
+                .contains(ScanPackageMarker.class));
     }
 
     private static List<String> contextIds(List<ModuleContext> contexts) {
         return contexts.stream()
-                .map(context -> context.getInfo().id())
+                .map(context -> context.id())
                 .collect(java.util.stream.Collectors.toList());
     }
 
@@ -285,7 +284,7 @@ class DefaultModuleRegistrarTest {
         public Module createModule(ModuleCandidate moduleCandidate) {
             instantiateCount++;
             if (moduleCandidate.getModuleClass().equals(FailingInstantiateModule.class)) {
-                throw new ModuleInstantiationException(moduleCandidate.getModuleInfo().id(),
+                throw new ModuleInstantiationException(moduleCandidate.id(),
                         new IllegalStateException("Expected instantiate failure"));
             }
             try {
@@ -293,7 +292,7 @@ class DefaultModuleRegistrarTest {
                 constructor.setAccessible(true);
                 return constructor.newInstance();
             } catch (Exception e) {
-                throw new ModuleInstantiationException(moduleCandidate.getModuleInfo().id(), e);
+                throw new ModuleInstantiationException(moduleCandidate.id(), e);
             }
         }
 
@@ -353,7 +352,7 @@ class DefaultModuleRegistrarTest {
         @ModuleEventListener
         public void onRegisterPost(ModuleRegisterEvent.Post event) {
             postCount++;
-            moduleId = event.getContext().getInfo().id();
+            moduleId = event.getContext().id();
             instantiateCountWhenPostPublished = provider.instantiateCount;
         }
     }

@@ -51,7 +51,7 @@ public class PersistenceModuleListener {
         } catch (RuntimeException e) {
             LOGGER.error(String.format(
                     "Module persistence shutdown failed during disable: [module=%s]",
-                    context.getInfo().id()
+                    context.id()
             ), e);
         }
     }

@@ -28,7 +28,7 @@ public class DefaultLifecycleManager implements LifecycleManager {
 
     @Override
     public void loadModule(ModuleContext context) {
-        String moduleID = context.getInfo().id();
+        String moduleID = context.id();
         Module module = context.getInstance();
 
         if (context.isError()) {
@@ -67,7 +67,7 @@ public class DefaultLifecycleManager implements LifecycleManager {
 
     @Override
     public void enableModule(ModuleContext context) {
-        String moduleID = context.getInfo().id();
+        String moduleID = context.id();
         Module module = context.getInstance();
 
         if (context.isError()) {
@@ -79,7 +79,7 @@ public class DefaultLifecycleManager implements LifecycleManager {
             return;
         }
 
-        for (String dependency : context.getInfo().dependencies()) {
+        for (String dependency : context.getDescriptor().dependencies()) {
             boolean dependencyEnabled = this.moduleStore.findById(dependency)
                     .map(ModuleContext::isEnabled)
                     .orElse(false);
@@ -142,7 +142,7 @@ public class DefaultLifecycleManager implements LifecycleManager {
 
     @Override
     public void disableModule(ModuleContext context) {
-        String moduleID = context.getInfo().id();
+        String moduleID = context.id();
         Module module = context.getInstance();
 
         if (!context.isEnabled()) {

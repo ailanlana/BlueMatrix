@@ -25,9 +25,9 @@ public class PersistenceStorageResolver implements ModuleParameterResolver {
     public Object resolve(Class<?> parameterType, InjectContext context) {
         if (!BlueStorageSourceProvider.class.isAssignableFrom(context.getModuleClass())) {
             throw new IllegalStateException("BlueStorage injection requires module to implement "
-                    + "BlueStorageSourceProvider: " + context.getModuleInfo().id()
+                    + "BlueStorageSourceProvider: " + context.id()
                     + " (" + context.getModuleClass().getName() + ")");
         }
-        return persistenceRegistry.getStorage(context.getModuleInfo().id());
+        return persistenceRegistry.getStorage(context.id());
     }
 }

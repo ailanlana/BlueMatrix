@@ -25,7 +25,7 @@ final class ModuleConfigLifecycle {
     }
 
     ModuleConfigLoadResult load(ModuleContext context) {
-        String moduleId = context.getInfo().id();
+        String moduleId = context.id();
         ModuleConfigState configState = new ModuleConfigState(
                 context.getInstance(),
                 moduleId,
@@ -49,7 +49,7 @@ final class ModuleConfigLifecycle {
     private boolean loadGeneralConfig(ModuleContext context, ConfigFile file) {
         boolean moduleEnabled = file.getOrSetDefault(
                 MODULE_ENABLE_PATH,
-                context.getInfo().enableByDefault(),
+                context.enableByDefault(),
                 "Whether to enable this module.\nSet to true to enable the module; false to skip enabling."
         );
         boolean debugEnabled = file.getOrSetDefault(

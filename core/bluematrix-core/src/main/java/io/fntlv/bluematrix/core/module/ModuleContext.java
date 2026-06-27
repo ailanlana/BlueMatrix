@@ -7,7 +7,8 @@ import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 @Getter
 public class ModuleContext {
     private final Module instance;
-    private final ModuleInfo info;
+    private final Class<? extends Module> moduleClass;
+    private final ModuleDescriptor descriptor;
     private final Reflections reflections;
     private ModuleConditionOutcome enableConditionOutcome;
     private ModuleState moduleState;
@@ -33,19 +34,43 @@ public class ModuleContext {
     }
 
     public ModuleContext(Module instance, ModuleInfo info) {
-        this(instance, new ModuleCandidate(instance.getClass(), info));
+        this(instance, ModuleDescriptor.from(instance.getClass(), info));
     }
 
     public ModuleContext(Module instance, ModuleCandidate candidate) {
-        this(instance, candidate.getModuleInfo(), candidate.getReflections());
+        this(instance, candidate.getModuleClass(), candidate.getDescriptor());
     }
 
-    public ModuleContext(Module instance, ModuleInfo info, Reflections reflections) {
+    public ModuleContext(Module instance, ModuleDescriptor descriptor) {
+        this(instance, instance.getClass(), descriptor);
+    }
+
+    public ModuleContext(Module instance, Class<? extends Module> moduleClass, ModuleDescriptor descriptor) {
+        this(instance, moduleClass, descriptor, ModuleReflectionsFactory.create(moduleClass, descriptor));
+    }
+
+    public ModuleContext(Module instance,
+                         Class<? extends Module> moduleClass,
+                         ModuleDescriptor descriptor,
+                         Reflections reflections) {
         this.instance = instance;
-        this.info = info;
+        this.moduleClass = moduleClass;
+        this.descriptor = descriptor;
         this.reflections = reflections;
         this.enableConditionOutcome = ModuleConditionOutcome.match();
         this.moduleState = ModuleState.REGISTERED;
+    }
+
+    public String id() {
+        return descriptor.id();
+    }
+
+    public String name() {
+        return descriptor.name();
+    }
+
+    public boolean enableByDefault() {
+        return descriptor.enableByDefault();
     }
 
     public void markEnableSkipped(ModuleConditionOutcome outcome) {

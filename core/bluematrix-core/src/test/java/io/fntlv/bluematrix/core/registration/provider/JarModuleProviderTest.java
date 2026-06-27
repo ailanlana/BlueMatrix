@@ -5,6 +5,7 @@ import io.fntlv.bluematrix.core.library.BlueMatrixLibraryScope;
 import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryLoader;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
+import io.fntlv.bluematrix.core.module.ModuleReflectionsFactory;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryException;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 import io.fntlv.bluematrix.loader.BlueClassLoaderSupport;
@@ -54,7 +55,7 @@ class JarModuleProviderTest {
         List<ModuleCandidate> modules = provider.discoverModules();
 
         assertEquals(1, modules.size());
-        assertEquals("jar-module", modules.get(0).getModuleInfo().id());
+        assertEquals("jar-module", modules.get(0).id());
     }
 
     @Test
@@ -63,12 +64,14 @@ class JarModuleProviderTest {
         JarModuleProvider provider = new JarModuleProvider(tempDir);
 
         ModuleCandidate module = provider.discoverModules().stream()
-                .filter(candidate -> candidate.getModuleInfo().id().equals("jar-module-with-scan-package"))
+                .filter(candidate -> candidate.id().equals("jar-module-with-scan-package"))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("module not discovered"));
 
-        assertEquals("jar-module-with-scan-package", module.getModuleInfo().id());
-        assertTrue(module.getReflections().getSubTypesOf(ScanTarget.class).contains(PlainClass.class));
+        assertEquals("jar-module-with-scan-package", module.id());
+        assertTrue(ModuleReflectionsFactory.create(module.getModuleClass(), module.getDescriptor())
+                .getSubTypesOf(ScanTarget.class)
+                .contains(PlainClass.class));
     }
 
     @Test
@@ -80,7 +83,7 @@ class JarModuleProviderTest {
         List<ModuleCandidate> modules = provider.discoverModules();
 
         assertEquals(1, modules.size());
-        assertEquals("jar-module", modules.get(0).getModuleInfo().id());
+        assertEquals("jar-module", modules.get(0).id());
     }
 
     @Test
@@ -97,7 +100,7 @@ class JarModuleProviderTest {
         JarModuleProvider provider = new JarModuleProvider(tempDir);
 
         List<String> ids = provider.discoverModules().stream()
-                .map(module -> module.getModuleInfo().id())
+                .map(module -> module.id())
                 .collect(Collectors.toList());
 
         assertEquals(2, ids.size());
@@ -121,7 +124,7 @@ class JarModuleProviderTest {
             List<ModuleCandidate> modules = provider.discoverModules();
 
             assertEquals(1, modules.size());
-            assertEquals("jar-library-module", modules.get(0).getModuleInfo().id());
+            assertEquals("jar-library-module", modules.get(0).id());
             assertEquals(1, downloader.calls);
             assertEquals(BlueMatrixLibraryScope.MODULE, downloader.scope);
             assertEquals("jar-library-module", downloader.qualifier);
@@ -146,7 +149,7 @@ class JarModuleProviderTest {
             );
 
             List<String> ids = provider.discoverModules().stream()
-                    .map(module -> module.getModuleInfo().id())
+                    .map(module -> module.id())
                     .collect(Collectors.toList());
 
             assertEquals(1, ids.size());
@@ -163,7 +166,7 @@ class JarModuleProviderTest {
         ModuleCandidate module = provider.discoverModules().get(0);
 
         assertEquals(JarModule.class, module.getModuleClass());
-        assertEquals("jar-module", module.getModuleInfo().id());
+        assertEquals("jar-module", module.id());
     }
 
     @Test

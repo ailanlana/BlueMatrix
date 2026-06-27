@@ -25,9 +25,9 @@ public class SqlDatabaseResolver implements ModuleParameterResolver {
     public Object resolve(Class<?> parameterType, InjectContext context) {
         if (!BlueDatabaseSourceProvider.class.isAssignableFrom(context.getModuleClass())) {
             throw new IllegalStateException("BlueDatabase injection requires module to implement "
-                    + "BlueDatabaseSourceProvider: " + context.getModuleInfo().id()
+                    + "BlueDatabaseSourceProvider: " + context.id()
                     + " (" + context.getModuleClass().getName() + ")");
         }
-        return sqlRegistry.getDatabase(context.getModuleInfo().id());
+        return sqlRegistry.getDatabase(context.id());
     }
 }

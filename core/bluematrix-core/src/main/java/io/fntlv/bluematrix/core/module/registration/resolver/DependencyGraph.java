@@ -1,6 +1,5 @@
 package io.fntlv.bluematrix.core.module.registration.resolver;
 
-import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 import lombok.Getter;
 
@@ -29,7 +28,7 @@ public class DependencyGraph {
     }
 
     private void addModule(ModuleCandidate module) {
-        nodes.putIfAbsent(module.getModuleInfo().id(), new Node(module));
+        nodes.putIfAbsent(module.id(), new Node(module));
     }
 
     private void addDependency(String sourceId, String targetId) {
@@ -49,11 +48,10 @@ public class DependencyGraph {
         DependencyGraph graph = new DependencyGraph();
         modules.forEach(graph::addModule);
         modules.forEach(module -> {
-            ModuleInfo info = module.getModuleInfo();
-            String sourceId = info.id();
-            Arrays.stream(info.dependencies())
+            String sourceId = module.id();
+            Arrays.stream(module.dependencies())
                     .forEach(targetId -> graph.addDependency(sourceId, targetId));
-            Arrays.stream(info.softDependencies())
+            Arrays.stream(module.softDependencies())
                     .forEach(targetId -> graph.addDependency(sourceId, targetId));
         });
         return graph;

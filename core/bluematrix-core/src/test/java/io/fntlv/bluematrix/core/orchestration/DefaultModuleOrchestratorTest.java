@@ -128,7 +128,7 @@ class DefaultModuleOrchestratorTest {
         public Module createModule(ModuleCandidate moduleCandidate) {
             instantiateCount++;
             if (moduleCandidate.getModuleClass().equals(FailingModule.class)) {
-                throw new ModuleInstantiationException(moduleCandidate.getModuleInfo().id(),
+                throw new ModuleInstantiationException(moduleCandidate.id(),
                         new IllegalStateException("Expected register failure"));
             }
             return new WorkingModule();

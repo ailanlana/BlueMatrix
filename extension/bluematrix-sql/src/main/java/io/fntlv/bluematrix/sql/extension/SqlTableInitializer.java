@@ -38,7 +38,7 @@ public class SqlTableInitializer {
                 table.create(sqlManager);
             } catch (SQLException e) {
                 throw new SqlTableInitializationException("Module SQL table initialization failed: "
-                        + context.getInfo().id() + " (" + tableType.getName() + ")", e);
+                        + context.id() + " (" + tableType.getName() + ")", e);
             }
         }
     }

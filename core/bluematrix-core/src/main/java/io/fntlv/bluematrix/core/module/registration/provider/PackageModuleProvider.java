@@ -4,6 +4,7 @@ import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryException;
 import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryLoader;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryException;
 import io.fntlv.bluematrix.core.module.Module;
+import io.fntlv.bluematrix.core.module.ModuleDescriptor;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 import io.fntlv.bluematrix.logging.BlueLogger;
@@ -44,25 +45,26 @@ public class PackageModuleProvider implements ModuleProvider {
 
         for (Class<? extends Module> clazz : classes) {
             ModuleInfo info = clazz.getAnnotation(ModuleInfo.class);
-            if (loadRuntimeLibraries(info)) {
-                ModuleCandidate candidate = new ModuleCandidate(clazz, info);
+            ModuleDescriptor descriptor = ModuleDescriptor.from(clazz, info);
+            if (loadRuntimeLibraries(descriptor)) {
+                ModuleCandidate candidate = new ModuleCandidate(clazz, descriptor);
                 discoveredModules.add(candidate);
             }
         }
         return new ArrayList<>(discoveredModules);
     }
 
-    private boolean loadRuntimeLibraries(ModuleInfo info) {
+    private boolean loadRuntimeLibraries(ModuleDescriptor descriptor) {
         if (runtimeLibraryLoader == null) {
             return true;
         }
         try {
-            runtimeLibraryLoader.load(info);
+            runtimeLibraryLoader.load(descriptor);
             return true;
         } catch (ModuleRuntimeLibraryException e) {
             LOGGER.warn("Skipping module: {} ({}) - {}",
-                    info.name(),
-                    info.id(),
+                    descriptor.name(),
+                    descriptor.id(),
                     e.getMessage());
             return false;
         }

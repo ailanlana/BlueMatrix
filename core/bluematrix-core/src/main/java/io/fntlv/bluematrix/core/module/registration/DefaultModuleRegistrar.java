@@ -5,7 +5,6 @@ import io.fntlv.bluematrix.logging.BlueLoggerFactory;
 import io.fntlv.bluematrix.core.event.DefaultModuleEventBus;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
 import io.fntlv.bluematrix.core.module.Module;
-import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryException;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleRegistrationException;
@@ -153,8 +152,8 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
         List<ModuleCandidate> availableModules = new ArrayList<>();
         List<ModuleRegistrationIssue> issues = new ArrayList<>();
         for (ModuleCandidate module : modules) {
-            if (conflicts.contains(module.getModuleInfo().id())) {
-                String reason = "Duplicate module id: " + module.getModuleInfo().id();
+            if (conflicts.contains(module.id())) {
+                String reason = "Duplicate module id: " + module.id();
                 logSkip(module, reason);
                 issues.add(new DuplicateModuleIdIssue(module, reason));
             } else {
@@ -181,7 +180,7 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
                 issues.add(new InstantiationFailedIssue(module, reason, e));
             } catch (RuntimeException e) {
                 throw new ModuleRegistrationException(
-                        "Failed to register module: " + module.getModuleInfo().id(),
+                        "Failed to register module: " + module.id(),
                         e
                 );
             }
@@ -191,7 +190,7 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
 
     private Set<String> findConflictIds(List<ModuleCandidate> modules) {
         Map<String, Long> countById = modules.stream()
-                .collect(Collectors.groupingBy(module -> module.getModuleInfo().id(), Collectors.counting()));
+                .collect(Collectors.groupingBy(module -> module.id(), Collectors.counting()));
         return countById.entrySet().stream()
                 .filter(entry -> entry.getValue() > 1)
                 .map(Map.Entry::getKey)
@@ -199,18 +198,16 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
     }
 
     private void logRegisterSuccess(ModuleCandidate module) {
-        ModuleInfo info = module.getModuleInfo();
         LOGGER.info("Successfully register module: {} ({}) - {}",
-                info.name(), info.id(), info.description()
+                module.name(), module.id(), module.description()
         );
     }
 
     private void logSkip(ModuleCandidate module, String reason) {
-        ModuleInfo info = module.getModuleInfo();
         LOGGER.warn(
                 "Skipping module: {} ({}) - {}",
-                info.name(),
-                info.id(),
+                module.name(),
+                module.id(),
                 reason
         );
     }

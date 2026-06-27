@@ -3,7 +3,7 @@ package io.fntlv.bluematrix.core.library;
 import io.fntlv.bluematrix.core.event.ModuleEventListener;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegisterEvent;
 import io.fntlv.bluematrix.core.module.ModuleContext;
-import io.fntlv.bluematrix.core.module.ModuleInfo;
+import io.fntlv.bluematrix.core.module.ModuleDescriptor;
 import io.fntlv.bluematrix.logging.BlueLogger;
 import io.fntlv.bluematrix.logging.BlueLoggerFactory;
 
@@ -22,12 +22,12 @@ public final class ModuleLibraryLoadListener {
     @ModuleEventListener
     public void onRegisterPost(ModuleRegisterEvent.Post event) {
         ModuleContext context = event.getContext();
-        ModuleInfo info = context.getInfo();
+        ModuleDescriptor descriptor = context.getDescriptor();
         try {
-            runtimeLibraryLoader.load(info);
+            runtimeLibraryLoader.load(descriptor);
         } catch (RuntimeException e) {
             context.markError();
-            LOGGER.error(String.format("Module library load failed: [module=%s]", info.id()), e);
+            LOGGER.error(String.format("Module library load failed: [module=%s]", descriptor.id()), e);
         }
     }
 }

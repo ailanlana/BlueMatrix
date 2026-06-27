@@ -16,8 +16,8 @@ public final class CircularDependencyIssue extends ModuleRegistrationIssue {
     public CircularDependencyIssue(ModuleCandidate module, String message, List<String> cycleModuleIds) {
         super(
                 ModuleRegistrationIssueType.CIRCULAR_DEPENDENCY,
-                module.getModuleInfo().id(),
-                module.getModuleInfo().name(),
+                module.id(),
+                module.name(),
                 message
         );
         this.cycleModuleIds = immutableCopy(cycleModuleIds);

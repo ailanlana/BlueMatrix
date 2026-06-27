@@ -12,23 +12,23 @@ public class ModuleSqlRegistry {
     private final Map<String, BlueDatabase> registeredDatabases = Collections.synchronizedMap(new HashMap<>());
 
     public BlueDatabase registerDatabase(ModuleCandidate candidate) {
-        return registerDatabase(candidate.getModuleInfo().id());
+        return registerDatabase(candidate.id());
     }
 
     public boolean containsDatabase(ModuleCandidate candidate) {
-        return registeredDatabases.containsKey(candidate.getModuleInfo().id());
+        return registeredDatabases.containsKey(candidate.id());
     }
 
     public boolean containsDatabase(ModuleContext context) {
-        return registeredDatabases.containsKey(context.getInfo().id());
+        return registeredDatabases.containsKey(context.id());
     }
 
     public BlueDatabase getDatabase(ModuleCandidate candidate) {
-        return getDatabase(candidate.getModuleInfo().id());
+        return getDatabase(candidate.id());
     }
 
     public BlueDatabase getDatabase(ModuleContext context) {
-        return getDatabase(context.getInfo().id());
+        return getDatabase(context.id());
     }
 
     public BlueDatabase getDatabase(String moduleId) {

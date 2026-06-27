@@ -52,14 +52,14 @@ public class DefaultModuleInstanceFactory implements ModuleInstanceFactory {
         } catch (ModuleInstantiationException e) {
             throw e;
         } catch (ModuleParameterResolutionException e) {
-            throw new ModuleInstantiationException(context.getModuleInfo().id(), e);
+            throw new ModuleInstantiationException(context.id(), e);
         } catch (ModuleFieldInjectionException e) {
-            throw new ModuleInstantiationException(context.getModuleInfo().id(), e);
+            throw new ModuleInstantiationException(context.id(), e);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause();
             throw instantiationException(context, cause == null ? e : cause);
         } catch (Exception e) {
-            throw new ModuleInstantiationException(context.getModuleInfo().id(), e);
+            throw new ModuleInstantiationException(context.id(), e);
         }
     }
 
@@ -67,7 +67,7 @@ public class DefaultModuleInstanceFactory implements ModuleInstanceFactory {
         if (cause instanceof ModuleInstantiationException) {
             return (ModuleInstantiationException) cause;
         }
-        return new ModuleInstantiationException(context.getModuleInfo().id(), cause);
+        return new ModuleInstantiationException(context.id(), cause);
     }
 
     private <T> Constructor<T> findConstructor(Class<T> type, InjectContext context) {

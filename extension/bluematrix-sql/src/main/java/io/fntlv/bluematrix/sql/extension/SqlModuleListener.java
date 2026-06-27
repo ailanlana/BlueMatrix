@@ -51,7 +51,7 @@ public class SqlModuleListener {
         } catch (RuntimeException e) {
             LOGGER.error(String.format(
                     "Module SQL shutdown failed during disable: [module=%s]",
-                    context.getInfo().id()
+                    context.id()
             ), e);
         }
     }

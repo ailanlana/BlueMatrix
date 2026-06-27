@@ -1,6 +1,6 @@
 package io.fntlv.bluematrix.core.library;
 
-import io.fntlv.bluematrix.core.module.ModuleInfo;
+import io.fntlv.bluematrix.core.module.ModuleDescriptor;
 
 public final class ModuleRuntimeLibraryLoader {
     private final BlueMatrixLibraryLoader libraryLoader;
@@ -12,11 +12,11 @@ public final class ModuleRuntimeLibraryLoader {
         this.libraryLoader = libraryLoader;
     }
 
-    public void load(ModuleInfo moduleInfo) {
-        if (moduleInfo == null) {
-            throw new IllegalArgumentException("moduleInfo cannot be null");
+    public void load(ModuleDescriptor descriptor) {
+        if (descriptor == null) {
+            throw new IllegalArgumentException("descriptor cannot be null");
         }
-        load(moduleInfo.id(), moduleInfo.repositories(), moduleInfo.libraries());
+        load(descriptor.id(), descriptor.repositories(), descriptor.libraries());
     }
 
     public void load(String moduleId, String[] repositories, String[] libraries) {

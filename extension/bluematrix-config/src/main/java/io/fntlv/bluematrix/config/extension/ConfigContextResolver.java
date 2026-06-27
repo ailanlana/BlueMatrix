@@ -21,6 +21,6 @@ public class ConfigContextResolver implements ModuleParameterResolver {
 
     @Override
     public Object resolve(Class<?> parameterType, InjectContext context) {
-        return configRegistry.getContext(context.getModuleInfo().id(), context.getModuleClass());
+        return configRegistry.getContext(context.id(), context.getModuleClass());
     }
 }

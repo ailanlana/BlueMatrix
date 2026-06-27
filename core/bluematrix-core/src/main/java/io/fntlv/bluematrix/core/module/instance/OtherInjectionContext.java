@@ -2,7 +2,7 @@ package io.fntlv.bluematrix.core.module.instance;
 
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
-import io.fntlv.bluematrix.core.module.ModuleInfo;
+import io.fntlv.bluematrix.core.module.ModuleDescriptor;
 import lombok.Getter;
 import org.reflections.Reflections;
 
@@ -10,22 +10,22 @@ import org.reflections.Reflections;
 public final class OtherInjectionContext implements InjectContext {
     private final Module moduleInstance;
     private final Class<? extends Module> moduleClass;
-    private final ModuleInfo moduleInfo;
+    private final ModuleDescriptor descriptor;
     private final Reflections reflections;
 
-    private OtherInjectionContext(Module moduleInstance, ModuleInfo moduleInfo, Reflections reflections) {
+    private OtherInjectionContext(Module moduleInstance, ModuleDescriptor descriptor, Reflections reflections) {
         if (moduleInstance == null) {
             throw new IllegalArgumentException("moduleInstance cannot be null");
         }
-        if (moduleInfo == null) {
-            throw new IllegalArgumentException("moduleInfo cannot be null");
+        if (descriptor == null) {
+            throw new IllegalArgumentException("descriptor cannot be null");
         }
         if (reflections == null) {
             throw new IllegalArgumentException("reflections cannot be null");
         }
         this.moduleInstance = moduleInstance;
         this.moduleClass = moduleInstance.getClass();
-        this.moduleInfo = moduleInfo;
+        this.descriptor = descriptor;
         this.reflections = reflections;
     }
 
@@ -33,6 +33,6 @@ public final class OtherInjectionContext implements InjectContext {
         if (context == null) {
             throw new IllegalArgumentException("context cannot be null");
         }
-        return new OtherInjectionContext(context.getInstance(), context.getInfo(), context.getReflections());
+        return new OtherInjectionContext(context.getInstance(), context.getDescriptor(), context.getReflections());
     }
 }

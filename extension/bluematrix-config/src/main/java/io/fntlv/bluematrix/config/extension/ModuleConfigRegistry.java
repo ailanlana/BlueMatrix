@@ -29,15 +29,15 @@ public class ModuleConfigRegistry {
     }
 
     public ModuleConfigContext registerContext(ModuleCandidate candidate) {
-        return registerContext(candidate.getModuleInfo().id());
+        return registerContext(candidate.id());
     }
 
     public ModuleConfigContext getContext(ModuleCandidate candidate) {
-        return getContext(candidate.getModuleInfo().id(), candidate.getModuleClass());
+        return getContext(candidate.id(), candidate.getModuleClass());
     }
 
     public ModuleConfigContext getContext(ModuleContext context) {
-        return getContext(context.getInfo().id(), context.getInstance().getClass());
+        return getContext(context.id(), context.getInstance().getClass());
     }
 
     public ModuleConfigContext getContext(String moduleId, Class<?> moduleClass) {
@@ -51,7 +51,7 @@ public class ModuleConfigRegistry {
     }
 
     public void bindContext(ModuleContext context, ModuleConfigState state) {
-        ModuleConfigContext configContext = registerContext(context.getInfo().id());
+        ModuleConfigContext configContext = registerContext(context.id());
         if (!(configContext instanceof DefaultModuleConfigContext)) {
             throw new IllegalStateException("Unsupported module config context type: "
                     + configContext.getClass().getName());

@@ -5,6 +5,7 @@ import io.fntlv.bluematrix.config.core.file.ConfigFile;
 import io.fntlv.bluematrix.config.extension.annotation.ConfigRegister;
 import io.fntlv.bluematrix.config.extension.context.ModuleConfigState;
 import io.fntlv.bluematrix.core.module.ModuleContext;
+import io.fntlv.bluematrix.core.module.ModuleReflectionsFactory;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 import io.fntlv.bluematrix.logging.BlueLogger;
 import io.fntlv.bluematrix.logging.BlueLoggerFactory;
@@ -28,24 +29,27 @@ public class ConfigRegisterProcessor {
     }
 
     public void process(ModuleContext moduleContext, ModuleConfigState configState) {
-        ModuleCandidate candidate = new ModuleCandidate(
-                moduleContext.getInstance().getClass(),
-                moduleContext.getInfo(),
-                moduleContext.getReflections()
-        );
-        process(moduleContext.getInstance().getClass().getSimpleName(), candidate, configState);
+        process(moduleContext.getInstance().getClass().getSimpleName(),
+                moduleContext.id(),
+                moduleContext.getReflections().getTypesAnnotatedWith(ConfigRegister.class),
+                configState);
     }
 
     public void process(ModuleCandidate candidate, ModuleConfigState configState) {
-        process(candidate.getModuleClass().getSimpleName(), candidate, configState);
+        process(candidate.getModuleClass().getSimpleName(),
+                candidate.id(),
+                ModuleReflectionsFactory.create(candidate.getModuleClass(), candidate.getDescriptor())
+                        .getTypesAnnotatedWith(ConfigRegister.class),
+                configState);
     }
 
-    private void process(String moduleClassName, ModuleCandidate candidate, ModuleConfigState configState) {
-        Set<Class<?>> configClasses = candidate.getReflections().getTypesAnnotatedWith(ConfigRegister.class);
-
+    private void process(String moduleClassName,
+                         String moduleId,
+                         Set<Class<?>> configClasses,
+                         ModuleConfigState configState) {
         logger().debug("Found {} config register classes in module {}",
                 configClasses.size(),
-                candidate.getModuleInfo().id());
+                moduleId);
 
         for (Class<?> configClass : configClasses) {
             registerConfigClass(moduleClassName, configState, configClass);

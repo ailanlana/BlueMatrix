@@ -32,7 +32,7 @@ public class DefaultModuleRegistry implements ModuleRegistry {
     @Override
     public File getPath(Module module) {
         return moduleStore.findByInstance(module)
-                .map(moduleContext -> new File(dataFolder, moduleContext.getInfo().id()))
+                .map(moduleContext -> new File(dataFolder, moduleContext.id()))
                 .orElse(null);
     }
 }

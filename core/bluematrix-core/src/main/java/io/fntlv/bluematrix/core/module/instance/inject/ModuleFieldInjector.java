@@ -73,7 +73,7 @@ public class ModuleFieldInjector {
     }
 
     private String fieldDescription(Field field, InjectContext context) {
-        return "module=" + context.getModuleInfo().id()
+        return "module=" + context.id()
                 + ", field=" + field.getDeclaringClass().getName() + "#" + field.getName()
                 + ", type=" + field.getType().getName();
     }

@@ -86,8 +86,8 @@ class ModuleConfigRegistryTest {
         ModuleConfigContext configContext = registry.registerContext(candidate());
         ModuleConfigState state = new ModuleConfigState(
                 module,
-                context.getInfo().id(),
-                registry.openFile(context.getInfo().id())
+                context.id(),
+                registry.openFile(context.id())
         );
 
         registry.bindContext(context, state);
@@ -136,8 +136,8 @@ class ModuleConfigRegistryTest {
         ModuleConfigRegistry registry = registry();
         ExampleModule module = new ExampleModule();
         ModuleContext context = new ModuleContext(module, ExampleModule.class.getAnnotation(ModuleInfo.class));
-        ModuleConfigState first = new ModuleConfigState(module, context.getInfo().id(), registry.openFile(context.getInfo().id()));
-        ModuleConfigState second = new ModuleConfigState(module, context.getInfo().id(), registry.openFile(context.getInfo().id()));
+        ModuleConfigState first = new ModuleConfigState(module, context.id(), registry.openFile(context.id()));
+        ModuleConfigState second = new ModuleConfigState(module, context.id(), registry.openFile(context.id()));
 
         registry.bindContext(context, first);
 

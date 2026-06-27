@@ -23,23 +23,23 @@ public class ModulePersistenceRegistry {
     }
 
     public BlueStorage registerStorage(ModuleCandidate candidate) {
-        return registerStorage(candidate.getModuleInfo().id());
+        return registerStorage(candidate.id());
     }
 
     public boolean containsStorage(ModuleCandidate candidate) {
-        return registeredStorages.containsKey(candidate.getModuleInfo().id());
+        return registeredStorages.containsKey(candidate.id());
     }
 
     public boolean containsStorage(ModuleContext context) {
-        return registeredStorages.containsKey(context.getInfo().id());
+        return registeredStorages.containsKey(context.id());
     }
 
     public BlueStorage getStorage(ModuleCandidate candidate) {
-        return getStorage(candidate.getModuleInfo().id());
+        return getStorage(candidate.id());
     }
 
     public BlueStorage getStorage(ModuleContext context) {
-        return getStorage(context.getInfo().id());
+        return getStorage(context.id());
     }
 
     public BlueStorage getStorage(String moduleId) {

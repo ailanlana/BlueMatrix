@@ -28,7 +28,7 @@ public class ModuleStore {
 
     public Optional<ModuleContext> findById(String moduleID) {
         return modules.stream()
-                .filter(moduleContext -> moduleContext.getInfo().id().equals(moduleID))
+                .filter(moduleContext -> moduleContext.id().equals(moduleID))
                 .findAny();
     }
 

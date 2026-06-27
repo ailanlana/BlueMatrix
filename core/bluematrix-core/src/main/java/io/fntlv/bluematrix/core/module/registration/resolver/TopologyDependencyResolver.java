@@ -2,7 +2,6 @@ package io.fntlv.bluematrix.core.module.registration.resolver;
 
 import io.fntlv.bluematrix.logging.BlueLogger;
 import io.fntlv.bluematrix.logging.BlueLoggerFactory;
-import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationStageResult;
 import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssue;
@@ -42,7 +41,7 @@ public class TopologyDependencyResolver implements DependencyResolver {
     private List<ModuleCandidate> removeMissingDependencies(List<ModuleCandidate> modules,
                                                             List<ModuleRegistrationIssue> issues) {
         Map<String, ModuleCandidate> remainingById = modules.stream()
-                .collect(Collectors.toMap(module -> module.getModuleInfo().id(), module -> module, (first, second) -> first, LinkedHashMap::new));
+                .collect(Collectors.toMap(module -> module.id(), module -> module, (first, second) -> first, LinkedHashMap::new));
         Map<String, List<String>> missingDependsById = new LinkedHashMap<>();
 
         boolean changed;
@@ -51,15 +50,15 @@ public class TopologyDependencyResolver implements DependencyResolver {
             for (ModuleCandidate module : new ArrayList<>(remainingById.values())) {
                 List<String> missingDepends = getMissingRequiredDepends(module, remainingById.keySet());
                 if (!missingDepends.isEmpty()) {
-                    remainingById.remove(module.getModuleInfo().id());
-                    missingDependsById.put(module.getModuleInfo().id(), missingDepends);
+                    remainingById.remove(module.id());
+                    missingDependsById.put(module.id(), missingDepends);
                     changed = true;
                 }
             }
         } while (changed);
 
         for (ModuleCandidate module : modules) {
-            List<String> missingDepends = missingDependsById.get(module.getModuleInfo().id());
+            List<String> missingDepends = missingDependsById.get(module.id());
             if (missingDepends != null) {
                 String reason = "Missing required dependencies: " + String.join(", ", missingDepends);
                 logSkip(module, reason);
@@ -70,7 +69,7 @@ public class TopologyDependencyResolver implements DependencyResolver {
     }
 
     private List<String> getMissingRequiredDepends(ModuleCandidate module, Set<String> availableModuleIds) {
-        return Arrays.stream(module.getModuleInfo().dependencies())
+        return Arrays.stream(module.dependencies())
                 .filter(dependencyId -> !availableModuleIds.contains(dependencyId))
                 .collect(Collectors.toList());
     }
@@ -113,15 +112,15 @@ public class TopologyDependencyResolver implements DependencyResolver {
     }
 
     private int compareNodePriority(Node first, Node second) {
-        ModuleInfo firstInfo = first.getModule().getModuleInfo();
-        ModuleInfo secondInfo = second.getModule().getModuleInfo();
+        ModuleCandidate firstModule = first.getModule();
+        ModuleCandidate secondModule = second.getModule();
 
-        int loadOrderCompare = Integer.compare(firstInfo.loadOrder().ordinal(), secondInfo.loadOrder().ordinal());
+        int loadOrderCompare = Integer.compare(firstModule.loadOrder().ordinal(), secondModule.loadOrder().ordinal());
         if (loadOrderCompare != 0) {
             return loadOrderCompare;
         }
 
-        return firstInfo.id().compareTo(secondInfo.id());
+        return firstModule.id().compareTo(secondModule.id());
     }
 
     private List<ModuleCandidate> toModules(List<Node> nodes) {
@@ -132,16 +131,15 @@ public class TopologyDependencyResolver implements DependencyResolver {
 
     private List<String> ids(List<ModuleCandidate> modules) {
         return modules.stream()
-                .map(module -> module.getModuleInfo().id())
+                .map(module -> module.id())
                 .collect(Collectors.toList());
     }
 
     private void logSkip(ModuleCandidate module, String reason) {
-        ModuleInfo info = module.getModuleInfo();
         LOGGER.warn(
                 "Skipping module: {} ({}) - {}",
-                info.name(),
-                info.id(),
+                module.name(),
+                module.id(),
                 reason
         );
     }

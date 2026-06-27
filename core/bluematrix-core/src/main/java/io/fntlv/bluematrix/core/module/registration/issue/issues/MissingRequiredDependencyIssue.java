@@ -18,8 +18,8 @@ public final class MissingRequiredDependencyIssue extends ModuleRegistrationIssu
                                           List<String> missingDependencyIds) {
         super(
                 ModuleRegistrationIssueType.MISSING_REQUIRED_DEPENDENCY,
-                module.getModuleInfo().id(),
-                module.getModuleInfo().name(),
+                module.id(),
+                module.name(),
                 message
         );
         this.missingDependencyIds = immutableCopy(missingDependencyIds);

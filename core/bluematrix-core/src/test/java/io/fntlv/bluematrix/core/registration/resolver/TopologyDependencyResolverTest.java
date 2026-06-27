@@ -131,7 +131,7 @@ class TopologyDependencyResolverTest {
 
     private static List<String> ids(List<ModuleCandidate> modules) {
         return modules.stream()
-                .map(module -> module.getModuleInfo().id())
+                .map(module -> module.id())
                 .collect(Collectors.toList());
     }
 

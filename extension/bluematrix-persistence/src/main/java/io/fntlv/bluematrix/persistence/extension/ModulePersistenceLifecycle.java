@@ -34,7 +34,7 @@ final class ModulePersistenceLifecycle {
         }
         BlueStorage storage = persistenceRegistry.getStorage(context);
         BlueStorageSource source = storageSource(context);
-        String moduleId = context.getInfo().id();
+        String moduleId = context.id();
         File storageRootDirectory = persistenceRegistry.getModuleDataPath(moduleId);
         BlueStorageSourceContext sourceContext = new BlueStorageSourceContext(storageRootDirectory);
         BlueStorageSpec spec = source.toSpec(sourceContext);
@@ -56,7 +56,7 @@ final class ModulePersistenceLifecycle {
         Module module = context.getInstance();
         if (!(module instanceof BlueStorageSourceProvider)) {
             throw new IllegalStateException("Registered persistence module must implement BlueStorageSourceProvider: "
-                    + context.getInfo().id() + " (" + module.getClass().getName() + ")");
+                    + context.id() + " (" + module.getClass().getName() + ")");
         }
         BlueStorageSource source = ((BlueStorageSourceProvider) module).getStorageSource();
         if (source == null) {

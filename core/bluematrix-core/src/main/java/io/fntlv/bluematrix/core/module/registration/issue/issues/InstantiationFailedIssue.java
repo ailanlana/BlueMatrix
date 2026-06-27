@@ -12,8 +12,8 @@ public final class InstantiationFailedIssue extends ModuleRegistrationIssue {
     public InstantiationFailedIssue(ModuleCandidate module, String message, Throwable cause) {
         super(
                 ModuleRegistrationIssueType.INSTANTIATION_FAILED,
-                module.getModuleInfo().id(),
-                module.getModuleInfo().name(),
+                module.id(),
+                module.name(),
                 message
         );
         this.cause = cause;

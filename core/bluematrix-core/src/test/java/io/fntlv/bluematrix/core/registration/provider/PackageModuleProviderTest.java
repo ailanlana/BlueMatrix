@@ -80,7 +80,7 @@ class PackageModuleProviderTest {
 
     private static List<String> ids(List<ModuleCandidate> candidates) {
         return candidates.stream()
-                .map(candidate -> candidate.getModuleInfo().id())
+                .map(candidate -> candidate.id())
                 .collect(Collectors.toList());
     }
 

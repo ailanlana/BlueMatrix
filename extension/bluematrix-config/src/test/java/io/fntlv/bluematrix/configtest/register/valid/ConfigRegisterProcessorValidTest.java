@@ -35,8 +35,8 @@ class ConfigRegisterProcessorValidTest {
         ModuleConfigRegistry registry = new ModuleConfigRegistry(tempDir, new YamlConfigFileFormat());
         ModuleConfigState configState = new ModuleConfigState(
                 module,
-                moduleContext.getInfo().id(),
-                registry.openFile(moduleContext.getInfo().id())
+                moduleContext.id(),
+                registry.openFile(moduleContext.id())
         );
 
         new ConfigRegisterProcessor().process(moduleContext, configState);
@@ -58,8 +58,8 @@ class ConfigRegisterProcessorValidTest {
         ModuleConfigRegistry registry = new ModuleConfigRegistry(tempDir, new YamlConfigFileFormat());
         ModuleConfigState configState = new ModuleConfigState(
                 module,
-                moduleContext.getInfo().id(),
-                registry.openFile(moduleContext.getInfo().id())
+                moduleContext.id(),
+                registry.openFile(moduleContext.id())
         );
         ConfigRegisterProcessor processor = new ConfigRegisterProcessor();
 

@@ -45,7 +45,7 @@ final class ModuleSqlLifecycle {
         Module module = context.getInstance();
         if (!(module instanceof BlueDatabaseSourceProvider)) {
             throw new IllegalStateException("Registered SQL module must implement BlueDatabaseSourceProvider: "
-                    + context.getInfo().id() + " (" + module.getClass().getName() + ")");
+                    + context.id() + " (" + module.getClass().getName() + ")");
         }
         return ((BlueDatabaseSourceProvider) module).getDatabaseSource();
     }

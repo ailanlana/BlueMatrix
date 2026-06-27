@@ -13,11 +13,11 @@ public final class DuplicateModuleIdIssue extends ModuleRegistrationIssue {
     public DuplicateModuleIdIssue(ModuleCandidate module, String message) {
         super(
                 ModuleRegistrationIssueType.DUPLICATE_MODULE_ID,
-                module.getModuleInfo().id(),
-                module.getModuleInfo().name(),
+                module.id(),
+                module.name(),
                 message
         );
-        this.duplicatedModuleId = module.getModuleInfo().id();
+        this.duplicatedModuleId = module.id();
         this.moduleClassName = module.getModuleClass().getName();
     }
 

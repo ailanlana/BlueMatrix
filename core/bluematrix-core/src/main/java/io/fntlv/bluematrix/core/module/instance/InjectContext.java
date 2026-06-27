@@ -1,14 +1,15 @@
 package io.fntlv.bluematrix.core.module.instance;
 
 import io.fntlv.bluematrix.core.module.Module;
-import io.fntlv.bluematrix.core.module.ModuleInfo;
-import org.reflections.Reflections;
+import io.fntlv.bluematrix.core.module.ModuleDescriptor;
 
 public interface InjectContext {
 
     Class<? extends Module> getModuleClass();
 
-    ModuleInfo getModuleInfo();
+    ModuleDescriptor getDescriptor();
 
-    Reflections getReflections();
+    default String id() {
+        return getDescriptor().id();
+    }
 }

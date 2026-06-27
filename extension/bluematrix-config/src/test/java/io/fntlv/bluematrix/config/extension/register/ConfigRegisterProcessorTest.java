@@ -35,8 +35,8 @@ class ConfigRegisterProcessorTest {
         ConfigRegisterProcessor processor = new ConfigRegisterProcessor();
         ModuleConfigState state = new ModuleConfigState(
                 module,
-                context.getInfo().id(),
-                registry.openFile(context.getInfo().id())
+                context.id(),
+                registry.openFile(context.id())
         );
 
         ConfigInjectionException exception = assertThrows(ConfigInjectionException.class,
@@ -56,8 +56,8 @@ class ConfigRegisterProcessorTest {
         ConfigRegisterProcessor processor = new ConfigRegisterProcessor();
         ModuleConfigState state = new ModuleConfigState(
                 module,
-                context.getInfo().id(),
-                registry.openFile(context.getInfo().id())
+                context.id(),
+                registry.openFile(context.id())
         );
 
         ConfigInjectionException exception = assertThrows(ConfigInjectionException.class,
@@ -79,8 +79,8 @@ class ConfigRegisterProcessorTest {
         ConfigRegisterProcessor processor = new ConfigRegisterProcessor();
         ModuleConfigState state = new ModuleConfigState(
                 module,
-                context.getInfo().id(),
-                fileName -> registry.openFile(context.getInfo().id(), fileName)
+                context.id(),
+                fileName -> registry.openFile(context.id(), fileName)
         );
 
         ConfigInjectionException exception = assertThrows(ConfigInjectionException.class,
