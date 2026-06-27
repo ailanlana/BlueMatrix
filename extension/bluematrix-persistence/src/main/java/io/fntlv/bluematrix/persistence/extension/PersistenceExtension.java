@@ -15,6 +15,8 @@ public final class PersistenceExtension implements BlueMatrixExtension {
             "com.fasterxml.jackson.core:jackson-core:2.15.4",
             "com.fasterxml.jackson.core:jackson-annotations:2.15.4",
             "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+            "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.15.4",
+            "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.4",
             "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15.4",
             "org.yaml:snakeyaml:2.1",
             "org.slf4j:slf4j-api:1.7.36",

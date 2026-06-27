@@ -12,10 +12,14 @@ repositories {
 dependencies {
     compileOnly project(":core:bluematrix-core")
     compileOnlyApi 'br.com.finalcraft.everydatabase:everydatabase-core:1.0.4'
+    compileOnlyApi 'com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.15.4'
+    compileOnlyApi 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.4'
 
     testImplementation project(":core:bluematrix-core")
     testImplementation project(":core:bluematrix-logging")
     testImplementation 'br.com.finalcraft.everydatabase:everydatabase-core:1.0.4'
+    testImplementation 'com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.15.4'
+    testImplementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.4'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testImplementation 'org.reflections:reflections:0.10.2'
     testRuntimeOnly 'org.slf4j:slf4j-api:1.7.36'
