@@ -4,6 +4,11 @@ import io.fntlv.bluematrix.logging.BlueLogger;
 import io.fntlv.bluematrix.logging.BlueLoggerFactory;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationStageResult;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssue;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssues;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.CircularDependencyIssue;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.MissingRequiredDependencyIssue;
 import io.fntlv.bluematrix.core.module.registration.resolver.DependencyGraph.Node;
 
 import java.util.*;
@@ -14,18 +19,28 @@ public class TopologyDependencyResolver implements DependencyResolver {
 
     @Override
     public List<ModuleCandidate> resolve(List<ModuleCandidate> modules) {
-        List<ModuleCandidate> dependencyReadyModules = removeMissingDependencies(modules);
+        return resolveWithResult(modules).passed();
+    }
+
+    @Override
+    public ModuleRegistrationStageResult<ModuleCandidate> resolveWithResult(List<ModuleCandidate> modules) {
+        List<ModuleRegistrationIssue> issues = new ArrayList<>();
+        List<ModuleCandidate> dependencyReadyModules = removeMissingDependencies(modules, issues);
         DependencyGraph graph = DependencyGraph.build(dependencyReadyModules);
         SortResult sortResult = kahnTopologicalSort(graph);
 
         for (ModuleCandidate module : sortResult.circularModules) {
-            logSkip(module, "Circular dependency detected with modules: " + String.join(", ", ids(sortResult.circularModules)));
+            List<String> circularIds = ids(sortResult.circularModules);
+            String reason = "Circular dependency detected with modules: " + String.join(", ", circularIds);
+            logSkip(module, reason);
+            issues.add(new CircularDependencyIssue(module, reason, circularIds));
         }
 
-        return sortResult.loadOrder;
+        return ModuleRegistrationStageResult.of(sortResult.loadOrder, new ModuleRegistrationIssues(issues));
     }
 
-    private List<ModuleCandidate> removeMissingDependencies(List<ModuleCandidate> modules) {
+    private List<ModuleCandidate> removeMissingDependencies(List<ModuleCandidate> modules,
+                                                            List<ModuleRegistrationIssue> issues) {
         Map<String, ModuleCandidate> remainingById = modules.stream()
                 .collect(Collectors.toMap(module -> module.getModuleInfo().id(), module -> module, (first, second) -> first, LinkedHashMap::new));
         Map<String, List<String>> missingDependsById = new LinkedHashMap<>();
@@ -46,7 +61,9 @@ public class TopologyDependencyResolver implements DependencyResolver {
         for (ModuleCandidate module : modules) {
             List<String> missingDepends = missingDependsById.get(module.getModuleInfo().id());
             if (missingDepends != null) {
-                logSkip(module, "Missing required dependencies: " + String.join(", ", missingDepends));
+                String reason = "Missing required dependencies: " + String.join(", ", missingDepends);
+                logSkip(module, reason);
+                issues.add(new MissingRequiredDependencyIssue(module, reason, missingDepends));
             }
         }
         return new ArrayList<>(remainingById.values());

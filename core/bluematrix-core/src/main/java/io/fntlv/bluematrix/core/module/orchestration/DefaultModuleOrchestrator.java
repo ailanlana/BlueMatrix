@@ -5,6 +5,7 @@ import io.fntlv.bluematrix.core.event.ModuleEventBus;
 import io.fntlv.bluematrix.core.module.lifecycle.DefaultLifecycleManager;
 import io.fntlv.bluematrix.core.module.lifecycle.LifecycleManager;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegistrar;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationResult;
 import io.fntlv.bluematrix.core.module.storage.ModuleStore;
 
 import java.util.ArrayList;
@@ -35,7 +36,8 @@ public class DefaultModuleOrchestrator implements ModuleOrchestrator {
     }
 
     private void registerModules() {
-        for (ModuleContext context : moduleRegistrar.register()) {
+        ModuleRegistrationResult result = moduleRegistrar.register();
+        for (ModuleContext context : result.contexts()) {
             moduleStore.add(context);
         }
     }

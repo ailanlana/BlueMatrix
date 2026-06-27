@@ -18,6 +18,10 @@ import io.fntlv.bluematrix.core.module.registration.resolver.DependencyResolver;
 import io.fntlv.bluematrix.core.module.registration.resolver.TopologyDependencyResolver;
 import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
 import io.fntlv.bluematrix.core.module.ModuleContext;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssue;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssues;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.DuplicateModuleIdIssue;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.InstantiationFailedIssue;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -93,32 +97,39 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
     }
 
     @Override
-    public List<ModuleContext> register() {
+    public ModuleRegistrationResult register() {
         final long startTime = System.currentTimeMillis();
         LOGGER.infoBanner();
 
-        List<ModuleCandidate> modules = discoverModules();
+        ModuleRegistrationStageResult<ModuleCandidate> discovered = discoverModules();
+        ModuleRegistrationStageResult<ModuleCandidate> available = removeIdConflicts(discovered.passed());
+        ModuleRegistrationStageResult<ModuleCandidate> resolved = resolveDependencies(available.passed());
+        ModuleRegistrationStageResult<ModuleContext> registered = registerResolvedModules(resolved.passed());
+        ModuleRegistrationIssues issues = ModuleRegistrationIssues.merge(
+                discovered.issues(),
+                available.issues(),
+                resolved.issues(),
+                registered.issues()
+        );
 
-        List<ModuleCandidate> availableModules = removeIdConflicts(modules);
-        List<ModuleCandidate> loadOrder = resolveDependencies(availableModules);
-        List<ModuleContext> contexts = registerResolvedModules(loadOrder);
-
-        LOGGER.info("Module register completed. Success: {} | Duration: {}ms",
-                contexts.size(),
+        LOGGER.info("Module register completed. Success: {} | Issues: {} | Duration: {}ms",
+                registered.passed().size(),
+                issues.size(),
                 System.currentTimeMillis() - startTime
         );
-        return contexts;
+        return new ModuleRegistrationResult(registered.passed(), issues);
     }
 
-    private List<ModuleCandidate> discoverModules() {
+    private ModuleRegistrationStageResult<ModuleCandidate> discoverModules() {
         List<ModuleCandidate> modules = new ArrayList<>();
         for (ModuleProvider moduleProvider : moduleProviders) {
             try {
                 modules.addAll(moduleProvider.discoverModules());
             } catch (ModuleDiscoveryException e) {
-                LOGGER.warn("Skipping module provider: {} - {}",
-                        moduleProvider.getClass().getName(),
-                        e.getMessage());
+                throw new ModuleRegistrationException(
+                        "Failed to discover modules from provider: " + moduleProvider.getClass().getName(),
+                        e
+                );
             } catch (RuntimeException e) {
                 throw new ModuleRegistrationException(
                         "Failed to discover modules from provider: " + moduleProvider.getClass().getName(),
@@ -126,32 +137,36 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
                 );
             }
         }
-        return modules;
+        return ModuleRegistrationStageResult.of(modules);
     }
 
-    private List<ModuleCandidate> resolveDependencies(List<ModuleCandidate> modules) {
+    private ModuleRegistrationStageResult<ModuleCandidate> resolveDependencies(List<ModuleCandidate> modules) {
         try {
-            return dependencyResolver.resolve(modules);
+            return dependencyResolver.resolveWithResult(modules);
         } catch (RuntimeException e) {
             throw new ModuleRegistrationException("Failed to resolve module dependencies", e);
         }
     }
 
-    private List<ModuleCandidate> removeIdConflicts(List<ModuleCandidate> modules) {
+    private ModuleRegistrationStageResult<ModuleCandidate> removeIdConflicts(List<ModuleCandidate> modules) {
         Set<String> conflicts = findConflictIds(modules);
         List<ModuleCandidate> availableModules = new ArrayList<>();
+        List<ModuleRegistrationIssue> issues = new ArrayList<>();
         for (ModuleCandidate module : modules) {
             if (conflicts.contains(module.getModuleInfo().id())) {
-                logSkip(module, "Duplicate module id: " + module.getModuleInfo().id());
+                String reason = "Duplicate module id: " + module.getModuleInfo().id();
+                logSkip(module, reason);
+                issues.add(new DuplicateModuleIdIssue(module, reason));
             } else {
                 availableModules.add(module);
             }
         }
-        return availableModules;
+        return ModuleRegistrationStageResult.of(availableModules, new ModuleRegistrationIssues(issues));
     }
 
-    private List<ModuleContext> registerResolvedModules(List<ModuleCandidate> modules) {
+    private ModuleRegistrationStageResult<ModuleContext> registerResolvedModules(List<ModuleCandidate> modules) {
         List<ModuleContext> contexts = new ArrayList<>();
+        List<ModuleRegistrationIssue> issues = new ArrayList<>();
         for (ModuleCandidate module : modules) {
             try {
                 eventBus.publish(new ModuleRegisterEvent.Pre(module));
@@ -161,7 +176,9 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
                 contexts.add(context);
                 logRegisterSuccess(module);
             } catch (ModuleInstantiationException e) {
-                logSkip(module, "Failed to instantiate module: " + e.getMessage());
+                String reason = "Failed to instantiate module: " + e.getMessage();
+                logSkip(module, reason);
+                issues.add(new InstantiationFailedIssue(module, reason, e));
             } catch (RuntimeException e) {
                 throw new ModuleRegistrationException(
                         "Failed to register module: " + module.getModuleInfo().id(),
@@ -169,7 +186,7 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
                 );
             }
         }
-        return contexts;
+        return ModuleRegistrationStageResult.of(contexts, new ModuleRegistrationIssues(issues));
     }
 
     private Set<String> findConflictIds(List<ModuleCandidate> modules) {

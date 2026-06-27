@@ -3,6 +3,11 @@ package io.fntlv.bluematrix.core.module.registration.resolver;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationStageResult;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssue;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssueType;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.CircularDependencyIssue;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.MissingRequiredDependencyIssue;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -10,6 +15,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TopologyDependencyResolverTest {
@@ -78,6 +84,23 @@ class TopologyDependencyResolverTest {
     }
 
     @Test
+    void circularDependenciesAreReturnedAsIssues() {
+        ModuleRegistrationStageResult<ModuleCandidate> result = resolver.resolveWithResult(Arrays.asList(
+                provided(CircularA.class),
+                provided(CircularB.class)
+        ));
+
+        assertTrue(result.passed().isEmpty());
+        assertEquals(2, result.issues().size());
+        CircularDependencyIssue issue = assertInstanceOf(CircularDependencyIssue.class, result.issues().all().get(0));
+        assertIssue(issue, ModuleRegistrationIssueType.CIRCULAR_DEPENDENCY);
+        assertTrue(idsFromIssues(result.issues().all()).contains("circular-a"));
+        assertTrue(idsFromIssues(result.issues().all()).contains("circular-b"));
+        assertTrue(issue.cycleModuleIds().contains("circular-a"));
+        assertTrue(issue.cycleModuleIds().contains("circular-b"));
+    }
+
+    @Test
     void missingRequiredDependencyReturnsFailure() {
         List<ModuleCandidate> ordered = resolver.resolve(Arrays.asList(
                 provided(DependsOnMissing.class),
@@ -85,6 +108,21 @@ class TopologyDependencyResolverTest {
         ));
 
         assertEquals(Arrays.asList("beta"), ids(ordered));
+    }
+
+    @Test
+    void missingRequiredDependencyIsReturnedAsIssue() {
+        ModuleRegistrationStageResult<ModuleCandidate> result = resolver.resolveWithResult(Arrays.asList(
+                provided(DependsOnMissing.class),
+                provided(NormalBeta.class)
+        ));
+
+        assertEquals(Arrays.asList("beta"), ids(result.passed()));
+        assertEquals(1, result.issues().size());
+        MissingRequiredDependencyIssue issue = assertInstanceOf(MissingRequiredDependencyIssue.class, result.issues().all().get(0));
+        assertIssue(issue, ModuleRegistrationIssueType.MISSING_REQUIRED_DEPENDENCY);
+        assertEquals("missing-required-dependent", issue.moduleId());
+        assertEquals(Arrays.asList("missing"), issue.missingDependencyIds());
     }
 
     private static ModuleCandidate provided(Class<? extends Module> moduleClass) {
@@ -95,6 +133,17 @@ class TopologyDependencyResolverTest {
         return modules.stream()
                 .map(module -> module.getModuleInfo().id())
                 .collect(Collectors.toList());
+    }
+
+    private static List<String> idsFromIssues(List<ModuleRegistrationIssue> issues) {
+        return issues.stream()
+                .map(ModuleRegistrationIssue::moduleId)
+                .collect(Collectors.toList());
+    }
+
+    private static void assertIssue(ModuleRegistrationIssue issue, ModuleRegistrationIssueType type) {
+        assertEquals(type, issue.type());
+        assertTrue(issue.message().length() > 0);
     }
 
     private static class TestModule implements Module {

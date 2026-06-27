@@ -11,6 +11,11 @@ import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiatio
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleRegistrationException;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.OtherInjectionContext;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssue;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssueType;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.DuplicateModuleIdIssue;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.InstantiationFailedIssue;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.MissingRequiredDependencyIssue;
 import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
 import io.fntlv.bluematrix.core.registration.scanned.ScanPackageMarker;
 import io.fntlv.bluematrix.core.registration.scanned.ScanPackageType;
@@ -25,6 +30,7 @@ import java.util.List;
 import org.reflections.Reflections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -39,7 +45,7 @@ class DefaultModuleRegistrarTest {
                 new StaticProvider(SecondModule.class)
         ));
 
-        List<ModuleContext> contexts = registrar.register();
+        List<ModuleContext> contexts = registrar.register().contexts();
 
         assertEquals(2, contexts.size());
         assertEquals("first", contexts.get(0).getInfo().id());
@@ -56,9 +62,32 @@ class DefaultModuleRegistrarTest {
                 provider
         );
 
-        List<ModuleContext> contexts = registrar.register();
+        List<ModuleContext> contexts = registrar.register().contexts();
 
         assertTrue(contexts.isEmpty());
+        assertEquals(0, provider.instantiateCount);
+    }
+
+    @Test
+    void duplicateModuleIdsAreReturnedAsIssues() {
+        StaticProvider provider = new StaticProvider(FirstDuplicateModule.class, SecondDuplicateModule.class);
+        ModuleRegistrar registrar = new DefaultModuleRegistrar(
+                Collections.singletonList(provider),
+                new TopologyDependencyResolver(),
+                new DefaultModuleEventBus(),
+                provider
+        );
+
+        ModuleRegistrationResult result = registrar.register();
+
+        assertTrue(result.contexts().isEmpty());
+        assertEquals(2, result.issues().size());
+        DuplicateModuleIdIssue firstIssue = assertInstanceOf(DuplicateModuleIdIssue.class, result.issues().all().get(0));
+        DuplicateModuleIdIssue secondIssue = assertInstanceOf(DuplicateModuleIdIssue.class, result.issues().all().get(1));
+        assertIssue(firstIssue, ModuleRegistrationIssueType.DUPLICATE_MODULE_ID, "duplicate");
+        assertIssue(secondIssue, ModuleRegistrationIssueType.DUPLICATE_MODULE_ID, "duplicate");
+        assertEquals("duplicate", firstIssue.duplicatedModuleId());
+        assertTrue(firstIssue.moduleClassName().contains("DuplicateModule"));
         assertEquals(0, provider.instantiateCount);
     }
 
@@ -68,10 +97,23 @@ class DefaultModuleRegistrarTest {
                 new StaticProvider(FirstModule.class)
         ));
 
-        List<ModuleContext> contexts = registrar.register();
+        List<ModuleContext> contexts = registrar.register().contexts();
 
         assertEquals(1, contexts.size());
         assertEquals("first", contexts.get(0).getInfo().id());
+    }
+
+    @Test
+    void registerReturnsContextsAndIssues() {
+        ModuleRegistrar registrar = new DefaultModuleRegistrar(Arrays.asList(
+                new StaticProvider(FirstModule.class),
+                new StaticProvider(SecondModule.class)
+        ));
+
+        ModuleRegistrationResult result = registrar.register();
+
+        assertEquals(Arrays.asList("first", "second"), contextIds(result.contexts()));
+        assertTrue(result.issues().isEmpty());
     }
 
     @Test
@@ -84,23 +126,55 @@ class DefaultModuleRegistrarTest {
                 provider
         );
 
-        List<ModuleContext> contexts = registrar.register();
+        List<ModuleContext> contexts = registrar.register().contexts();
 
         assertEquals(1, contexts.size());
         assertEquals("first", contexts.get(0).getInfo().id());
     }
 
     @Test
-    void discoverErrorSkipsProviderAndContinues() {
+    void instantiationErrorIsReturnedAsIssueAndContinues() {
+        StaticProvider provider = new StaticProvider(FailingInstantiateModule.class, FirstModule.class);
+        ModuleRegistrar registrar = new DefaultModuleRegistrar(
+                Collections.singletonList(provider),
+                new TopologyDependencyResolver(),
+                new DefaultModuleEventBus(),
+                provider
+        );
+
+        ModuleRegistrationResult result = registrar.register();
+
+        assertEquals(Arrays.asList("first"), contextIds(result.contexts()));
+        assertEquals(1, result.issues().size());
+        InstantiationFailedIssue issue = assertInstanceOf(InstantiationFailedIssue.class, result.issues().all().get(0));
+        assertIssue(issue, ModuleRegistrationIssueType.INSTANTIATION_FAILED, "failing-instantiate");
+        assertTrue(issue.cause() instanceof ModuleInstantiationException);
+    }
+
+    @Test
+    void discoveryErrorThrowsRegistrationException() {
         ModuleRegistrar registrar = new DefaultModuleRegistrar(Arrays.asList(
                 new FailingDiscoveryProvider(),
                 new StaticProvider(FirstModule.class)
         ));
 
-        List<ModuleContext> contexts = registrar.register();
+        ModuleRegistrationException exception = assertThrows(ModuleRegistrationException.class, registrar::register);
+        assertTrue(exception.getCause() instanceof ModuleDiscoveryException);
+    }
 
-        assertEquals(1, contexts.size());
-        assertEquals("first", contexts.get(0).getInfo().id());
+    @Test
+    void dependencyResolutionIssuesAreReturned() {
+        ModuleRegistrar registrar = new DefaultModuleRegistrar(Collections.singletonList(
+                new StaticProvider(DependsOnMissingModule.class, FirstModule.class)
+        ));
+
+        ModuleRegistrationResult result = registrar.register();
+
+        assertEquals(Arrays.asList("first"), contextIds(result.contexts()));
+        assertEquals(1, result.issues().size());
+        MissingRequiredDependencyIssue issue = assertInstanceOf(MissingRequiredDependencyIssue.class, result.issues().all().get(0));
+        assertIssue(issue, ModuleRegistrationIssueType.MISSING_REQUIRED_DEPENDENCY, "depends-on-missing");
+        assertEquals(Collections.singletonList("missing"), issue.missingDependencyIds());
     }
 
     @Test
@@ -136,7 +210,7 @@ class DefaultModuleRegistrarTest {
                 provider
         );
 
-        List<ModuleContext> contexts = registrar.register();
+        List<ModuleContext> contexts = registrar.register().contexts();
 
         assertEquals(1, contexts.size());
         assertEquals(1, listener.preCount);
@@ -170,6 +244,20 @@ class DefaultModuleRegistrarTest {
         );
 
         assertTrue(candidate.getReflections().getSubTypesOf(ScanPackageType.class).contains(ScanPackageMarker.class));
+    }
+
+    private static List<String> contextIds(List<ModuleContext> contexts) {
+        return contexts.stream()
+                .map(context -> context.getInfo().id())
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    private static void assertIssue(ModuleRegistrationIssue issue,
+                                    ModuleRegistrationIssueType type,
+                                    String moduleId) {
+        assertEquals(type, issue.type());
+        assertEquals(moduleId, issue.moduleId());
+        assertTrue(issue.message().length() > 0);
     }
 
     private static class StaticProvider implements ModuleProvider, ModuleInstanceFactory {
@@ -332,6 +420,21 @@ class DefaultModuleRegistrarTest {
 
     @ModuleInfo(id = "failing-instantiate", name = "Failing Instantiate")
     private static class FailingInstantiateModule implements Module {
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "depends-on-missing", name = "Depends on Missing", dependencies = "missing")
+    private static class DependsOnMissingModule implements Module {
         @Override
         public void onLoad() {
         }
