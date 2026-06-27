@@ -43,9 +43,19 @@ public class ModuleParameterResolverRegistry {
     public Object resolve(Class<?> parameterType, InjectContext context) {
         ModuleParameterResolver resolver = findResolver(parameterType, context);
         if (resolver == null) {
-            throw new ModuleParameterResolutionException("Unsupported module constructor parameter: " + parameterType.getName());
+            throw new ModuleParameterResolutionException("Unsupported module parameter: " + parameterType.getName());
         }
         return resolver.resolve(parameterType, context);
+    }
+
+    List<ModuleParameterResolver> matchingResolvers(Class<?> parameterType, InjectContext context) {
+        List<ModuleParameterResolver> matchingResolvers = new ArrayList<>();
+        for (ModuleParameterResolver resolver : resolvers) {
+            if (resolver.supports(parameterType, context)) {
+                matchingResolvers.add(resolver);
+            }
+        }
+        return Collections.unmodifiableList(matchingResolvers);
     }
 
     public List<ModuleParameterResolver> resolvers() {
@@ -53,11 +63,10 @@ public class ModuleParameterResolverRegistry {
     }
 
     private ModuleParameterResolver findResolver(Class<?> parameterType, InjectContext context) {
-        for (ModuleParameterResolver resolver : resolvers) {
-            if (resolver.supports(parameterType, context)) {
-                return resolver;
-            }
+        List<ModuleParameterResolver> matchingResolvers = matchingResolvers(parameterType, context);
+        if (matchingResolvers.isEmpty()) {
+            return null;
         }
-        return null;
+        return matchingResolvers.get(0);
     }
 }

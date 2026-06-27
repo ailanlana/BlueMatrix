@@ -41,11 +41,10 @@ public class ModuleFieldInjector {
     }
 
     private void injectField(Object target, InjectContext context, Field field) {
-        validateField(field);
+        validateField(field, context);
         if (!parameterResolvers.supports(field.getType(), context)) {
             throw new ModuleFieldInjectionException("Unsupported module injection field: "
-                    + field.getDeclaringClass().getName() + "#" + field.getName()
-                    + " (" + field.getType().getName() + ")");
+                    + fieldDescription(field, context));
         }
         try {
             field.setAccessible(true);
@@ -54,22 +53,28 @@ public class ModuleFieldInjector {
             throw e;
         } catch (RuntimeException e) {
             throw new ModuleFieldInjectionException("Failed to resolve module injection field: "
-                    + field.getDeclaringClass().getName() + "#" + field.getName(), e);
+                    + fieldDescription(field, context), e);
         } catch (ReflectiveOperationException e) {
             throw new ModuleFieldInjectionException("Failed to inject module field: "
-                    + field.getDeclaringClass().getName() + "#" + field.getName(), e);
+                    + fieldDescription(field, context), e);
         }
     }
 
-    private void validateField(Field field) {
+    private void validateField(Field field, InjectContext context) {
         int modifiers = field.getModifiers();
         if (Modifier.isStatic(modifiers)) {
             throw new ModuleFieldInjectionException("@ModuleInject field cannot be static: "
-                    + field.getDeclaringClass().getName() + "#" + field.getName());
+                    + fieldDescription(field, context));
         }
         if (Modifier.isFinal(modifiers)) {
             throw new ModuleFieldInjectionException("@ModuleInject field cannot be final: "
-                    + field.getDeclaringClass().getName() + "#" + field.getName());
+                    + fieldDescription(field, context));
         }
+    }
+
+    private String fieldDescription(Field field, InjectContext context) {
+        return "module=" + context.getModuleInfo().id()
+                + ", field=" + field.getDeclaringClass().getName() + "#" + field.getName()
+                + ", type=" + field.getType().getName();
     }
 }

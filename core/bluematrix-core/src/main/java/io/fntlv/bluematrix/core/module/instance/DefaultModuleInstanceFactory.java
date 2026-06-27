@@ -10,11 +10,9 @@ import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolve
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Arrays;
-import java.util.Comparator;
 
 public class DefaultModuleInstanceFactory implements ModuleInstanceFactory {
-    private final ModuleParameterResolverRegistry parameterResolvers;
+    private final ModuleInstantiationPolicy instantiationPolicy;
     private final ModuleFieldInjector fieldInjector;
 
     public DefaultModuleInstanceFactory() {
@@ -25,7 +23,7 @@ public class DefaultModuleInstanceFactory implements ModuleInstanceFactory {
         if (parameterResolvers == null) {
             throw new IllegalArgumentException("parameterResolvers cannot be null");
         }
-        this.parameterResolvers = parameterResolvers;
+        this.instantiationPolicy = new ModuleInstantiationPolicy(parameterResolvers);
         this.fieldInjector = new ModuleFieldInjector(parameterResolvers);
     }
 
@@ -48,7 +46,7 @@ public class DefaultModuleInstanceFactory implements ModuleInstanceFactory {
         try {
             Constructor<T> constructor = findConstructor(type, context);
             constructor.setAccessible(true);
-            T instance = constructor.newInstance(resolveParameters(context, constructor));
+            T instance = constructor.newInstance(resolveParameters(type, context, constructor));
             fieldInjector.inject(instance, context);
             return instance;
         } catch (ModuleInstantiationException e) {
@@ -72,31 +70,11 @@ public class DefaultModuleInstanceFactory implements ModuleInstanceFactory {
         return new ModuleInstantiationException(context.getModuleInfo().id(), cause);
     }
 
-    @SuppressWarnings("unchecked")
     private <T> Constructor<T> findConstructor(Class<T> type, InjectContext context) {
-        return (Constructor<T>) Arrays.stream(type.getDeclaredConstructors())
-                .filter(constructor -> supportsAllParameters(constructor, context))
-                .max(Comparator.comparingInt(Constructor::getParameterCount))
-                .orElseThrow(() -> new ModuleParameterResolutionException(
-                        "No resolvable constructor found for module instance: " + type.getName()
-                ));
+        return instantiationPolicy.selectConstructor(type, context);
     }
 
-    private boolean supportsAllParameters(Constructor<?> constructor, InjectContext context) {
-        for (Class<?> parameterType : constructor.getParameterTypes()) {
-            if (!parameterResolvers.supports(parameterType, context)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private Object[] resolveParameters(InjectContext context, Constructor<?> constructor) {
-        Class<?>[] parameterTypes = constructor.getParameterTypes();
-        Object[] parameters = new Object[parameterTypes.length];
-        for (int i = 0; i < parameterTypes.length; i++) {
-            parameters[i] = parameterResolvers.resolve(parameterTypes[i], context);
-        }
-        return parameters;
+    private Object[] resolveParameters(Class<?> type, InjectContext context, Constructor<?> constructor) {
+        return instantiationPolicy.resolveParameters(type, context, constructor);
     }
 }

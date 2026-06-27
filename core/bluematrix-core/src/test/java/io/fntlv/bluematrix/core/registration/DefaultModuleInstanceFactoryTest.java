@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultModuleInstanceFactoryTest {
 
@@ -142,6 +143,51 @@ class DefaultModuleInstanceFactoryTest {
     }
 
     @Test
+    void choosesConstructorWithMostResolvableParameters() {
+        ModuleCandidate candidate = candidate(MoreParametersPreferredModule.class);
+        ModuleRegistry moduleRegistry = new DefaultModuleRegistry(new ModuleStore(), tempDir);
+        DefaultModuleInstanceFactory registryFactory = new DefaultModuleInstanceFactory(parameterResolvers(
+                new ModuleRegistryParameterResolver(moduleRegistry)
+        ));
+
+        Module module = registryFactory.create(candidate);
+
+        assertSame(moduleRegistry, ((MoreParametersPreferredModule) module).moduleRegistry);
+    }
+
+    @Test
+    void skipsConstructorWithUnresolvableParameters() {
+        ModuleCandidate candidate = candidate(UnresolvableMoreParametersModule.class);
+        ModuleRegistry moduleRegistry = new DefaultModuleRegistry(new ModuleStore(), tempDir);
+        DefaultModuleInstanceFactory registryFactory = new DefaultModuleInstanceFactory(parameterResolvers(
+                new ModuleRegistryParameterResolver(moduleRegistry)
+        ));
+
+        Module module = registryFactory.create(candidate);
+
+        assertSame(moduleRegistry, ((UnresolvableMoreParametersModule) module).moduleRegistry);
+        assertNull(((UnresolvableMoreParametersModule) module).value);
+    }
+
+    @Test
+    void ambiguousResolvableConstructorsFailInstantiation() {
+        ModuleCandidate candidate = candidate(AmbiguousConstructorModule.class);
+        ModuleRegistry moduleRegistry = new DefaultModuleRegistry(new ModuleStore(), tempDir);
+        ModuleEventBus eventBus = new DefaultModuleEventBus();
+        ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
+        parameterResolvers.register(new ModuleRegistryParameterResolver(moduleRegistry));
+        parameterResolvers.register(new ModuleEventBusParameterResolver(eventBus));
+        DefaultModuleInstanceFactory ambiguousFactory = new DefaultModuleInstanceFactory(parameterResolvers);
+
+        ModuleInstantiationException exception = assertThrows(ModuleInstantiationException.class,
+                () -> ambiguousFactory.create(candidate));
+
+        assertInstanceOf(ModuleParameterResolutionException.class, exception.getCause());
+        assertTrue(exception.getCause().getMessage().contains("Ambiguous resolvable constructors"));
+        assertTrue(exception.getCause().getMessage().contains(AmbiguousConstructorModule.class.getName()));
+    }
+
+    @Test
     void fieldsWithoutModuleInjectAreNotInjected() {
         ModuleCandidate candidate = candidate(UnmarkedFieldModule.class);
         ModuleRegistry moduleRegistry = new DefaultModuleRegistry(new ModuleStore(), tempDir);
@@ -190,6 +236,28 @@ class DefaultModuleInstanceFactoryTest {
                 () -> factory.create(candidate));
 
         assertInstanceOf(ModuleFieldInjectionException.class, exception.getCause());
+    }
+
+    @Test
+    void unsupportedConstructorParameterMessageIncludesTargetAndParameterType() {
+        ModuleCandidate candidate = candidate(MissingNoArgumentConstructorModule.class);
+
+        ModuleInstantiationException exception = assertThrows(ModuleInstantiationException.class,
+                () -> factory.create(candidate));
+
+        assertTrue(exception.getCause().getMessage().contains(MissingNoArgumentConstructorModule.class.getName()));
+        assertTrue(exception.getCause().getMessage().contains(String.class.getName()));
+    }
+
+    @Test
+    void unsupportedFieldMessageIncludesFieldAndType() {
+        ModuleCandidate candidate = candidate(UnsupportedFieldModule.class);
+
+        ModuleInstantiationException exception = assertThrows(ModuleInstantiationException.class,
+                () -> factory.create(candidate));
+
+        assertTrue(exception.getCause().getMessage().contains(UnsupportedFieldModule.class.getName() + "#value"));
+        assertTrue(exception.getCause().getMessage().contains(String.class.getName()));
     }
 
     @Test
@@ -260,6 +328,19 @@ class DefaultModuleInstanceFactoryTest {
                 () -> instanceFactory.createModule(candidate));
 
         assertInstanceOf(ModuleParameterResolutionException.class, exception.getCause());
+    }
+
+    @Test
+    void resolverRegistrationOrderDeterminesConstructorParameterValue() {
+        ModuleCandidate candidate = candidate(StringConstructorModule.class);
+        ModuleParameterResolverRegistry registry = new ModuleParameterResolverRegistry();
+        registry.register(new StringParameterResolver(ModuleInjectionContext.class, "first-value"));
+        registry.register(new StringParameterResolver(ModuleInjectionContext.class, "second-value"));
+        DefaultModuleInstanceFactory instanceFactory = new DefaultModuleInstanceFactory(registry);
+
+        Module module = instanceFactory.createModule(candidate);
+
+        assertEquals("first-value", ((StringConstructorModule) module).value);
     }
 
     @Test
@@ -382,7 +463,10 @@ class DefaultModuleInstanceFactoryTest {
 
     @ModuleInfo(id = "string-constructor", name = "String Constructor")
     public static class StringConstructorModule implements Module {
+        private final String value;
+
         public StringConstructorModule(String value) {
+            this.value = value;
         }
 
         @Override
@@ -505,6 +589,80 @@ class DefaultModuleInstanceFactoryTest {
 
         public ConstructorAndFieldModule(ModuleRegistry moduleRegistry) {
             this.moduleRegistry = moduleRegistry;
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "more-parameters-preferred", name = "More Parameters Preferred")
+    public static class MoreParametersPreferredModule implements Module {
+        private final ModuleRegistry moduleRegistry;
+
+        public MoreParametersPreferredModule() {
+            this.moduleRegistry = null;
+        }
+
+        public MoreParametersPreferredModule(ModuleRegistry moduleRegistry) {
+            this.moduleRegistry = moduleRegistry;
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "unresolvable-more-parameters", name = "Unresolvable More Parameters")
+    public static class UnresolvableMoreParametersModule implements Module {
+        private final ModuleRegistry moduleRegistry;
+        private final String value;
+
+        public UnresolvableMoreParametersModule(ModuleRegistry moduleRegistry) {
+            this.moduleRegistry = moduleRegistry;
+            this.value = null;
+        }
+
+        public UnresolvableMoreParametersModule(ModuleRegistry moduleRegistry, String value) {
+            this.moduleRegistry = moduleRegistry;
+            this.value = value;
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "ambiguous-constructor", name = "Ambiguous Constructor")
+    public static class AmbiguousConstructorModule implements Module {
+        public AmbiguousConstructorModule(ModuleRegistry moduleRegistry) {
+        }
+
+        public AmbiguousConstructorModule(ModuleEventBus eventBus) {
         }
 
         @Override
