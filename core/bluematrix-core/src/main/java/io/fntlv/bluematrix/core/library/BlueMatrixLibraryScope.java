@@ -16,14 +16,14 @@ public enum BlueMatrixLibraryScope {
         this.folderName = folderName;
     }
 
-    String managerName(String qualifier) {
+    public String managerName(String qualifier) {
         if (qualifier == null || qualifier.trim().isEmpty()) {
             return managerName;
         }
         return managerName + "_" + qualifier;
     }
 
-    File rootFolder(File dataFolder) {
+    public File rootFolder(File dataFolder) {
         File libsFolder = new File(dataFolder, "libs");
         if (this == EXTENSION || this == MODULE) {
             return new File(libsFolder, folderName);
@@ -31,7 +31,7 @@ public enum BlueMatrixLibraryScope {
         return libsFolder;
     }
 
-    String libsFolderName(String qualifier) {
+    public String libsFolderName(String qualifier) {
         if (this == EXTENSION || this == MODULE) {
             return qualifier;
         }

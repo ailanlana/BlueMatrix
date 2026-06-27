@@ -1,10 +1,10 @@
-package io.fntlv.bluematrix.core.library;
+package io.fntlv.bluematrix.core.library.declaration;
 
-final class ExtensionRuntimeLibraryDeclaration {
+public final class ExtensionRuntimeLibraryDeclaration {
     private final String extensionName;
     private final RuntimeLibraryDeclaration declaration;
 
-    ExtensionRuntimeLibraryDeclaration(String extensionName, RuntimeLibraryDeclaration declaration) {
+    public ExtensionRuntimeLibraryDeclaration(String extensionName, RuntimeLibraryDeclaration declaration) {
         if (extensionName == null || extensionName.trim().isEmpty()) {
             throw new IllegalArgumentException("extensionName cannot be blank");
         }
@@ -12,11 +12,11 @@ final class ExtensionRuntimeLibraryDeclaration {
         this.declaration = declaration;
     }
 
-    String extensionName() {
+    public String extensionName() {
         return extensionName;
     }
 
-    RuntimeLibraryDeclaration declaration() {
+    public RuntimeLibraryDeclaration declaration() {
         return declaration;
     }
 }

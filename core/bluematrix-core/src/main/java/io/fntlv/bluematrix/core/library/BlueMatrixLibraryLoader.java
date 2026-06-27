@@ -1,6 +1,9 @@
 package io.fntlv.bluematrix.core.library;
 
-import io.fntlv.bluematrix.loader.BlueLibraryManager;
+import io.fntlv.bluematrix.core.library.declaration.ExtensionRuntimeLibraryDeclaration;
+import io.fntlv.bluematrix.core.library.declaration.ModuleRuntimeLibraryDeclaration;
+import io.fntlv.bluematrix.core.library.declaration.RuntimeLibraryDeclaration;
+import io.fntlv.bluematrix.core.library.runtime.RuntimeLibraryInstaller;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
 import io.fntlv.bluematrix.loader.library.BlueLibraryFactory;
 
@@ -161,7 +164,8 @@ public final class BlueMatrixLibraryLoader {
     }
 
     private void loadMissingCoreLibraries() {
-        boolean coreMissing = !installer.isPresent("org.reflections.Reflections");
+        boolean coreMissing = !installer.isPresent("org.reflections.Reflections")
+                || !installer.isPresent("javassist.bytecode.ClassFile");
         boolean loggingMissing = !installer.isPresent("org.slf4j.LoggerFactory")
                 || !installer.isPresent("ch.qos.logback.classic.Logger");
 
@@ -212,13 +216,12 @@ public final class BlueMatrixLibraryLoader {
                 String qualifier,
                 BlueLibrary library
         ) {
-            BlueLibraryManager manager = loader.manager(scope, qualifier);
-            manager.loadLibrary(library);
+            loader.install(scope, qualifier, library);
         }
     }
 
-    BlueLibraryManager manager(BlueMatrixLibraryScope scope, String qualifier) {
-        return installer.manager(scope, qualifier);
+    private void install(BlueMatrixLibraryScope scope, String qualifier, BlueLibrary library) {
+        installer.loadLibrary(scope, qualifier, library);
     }
 
     List<String> repositoriesForTesting(BlueMatrixLibraryScope scope, String qualifier) {

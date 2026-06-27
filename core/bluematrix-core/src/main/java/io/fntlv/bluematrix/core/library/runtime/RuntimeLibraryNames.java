@@ -1,17 +1,17 @@
-package io.fntlv.bluematrix.core.library;
+package io.fntlv.bluematrix.core.library.runtime;
 
-final class RuntimeLibraryNames {
+public final class RuntimeLibraryNames {
     private RuntimeLibraryNames() {
     }
 
-    static String normalize(String value) {
+    public static String normalize(String value) {
         if (value == null) {
             return "";
         }
         return value.trim();
     }
 
-    static String normalizeRepository(String repositoryUrl) {
+    public static String normalizeRepository(String repositoryUrl) {
         if (repositoryUrl == null || repositoryUrl.trim().isEmpty()) {
             throw new IllegalArgumentException("repositoryUrl cannot be blank");
         }

@@ -1,12 +1,14 @@
-package io.fntlv.bluematrix.core.library;
+package io.fntlv.bluematrix.core.library.declaration;
+
+import io.fntlv.bluematrix.core.library.runtime.RuntimeLibraryNames;
 
 import java.util.Objects;
 
-final class ModuleRuntimeRepositoryDeclaration {
+public final class ModuleRuntimeRepositoryDeclaration {
     private final String moduleId;
     private final String repositoryUrl;
 
-    ModuleRuntimeRepositoryDeclaration(String moduleId, String repositoryUrl) {
+    public ModuleRuntimeRepositoryDeclaration(String moduleId, String repositoryUrl) {
         if (moduleId == null || moduleId.trim().isEmpty()) {
             throw new IllegalArgumentException("moduleId cannot be blank");
         }
@@ -14,11 +16,11 @@ final class ModuleRuntimeRepositoryDeclaration {
         this.repositoryUrl = RuntimeLibraryNames.normalizeRepository(repositoryUrl);
     }
 
-    String moduleId() {
+    public String moduleId() {
         return moduleId;
     }
 
-    String repositoryUrl() {
+    public String repositoryUrl() {
         return repositoryUrl;
     }
 

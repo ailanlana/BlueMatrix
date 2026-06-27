@@ -1,5 +1,9 @@
-package io.fntlv.bluematrix.core.library;
+package io.fntlv.bluematrix.core.library.runtime;
 
+import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
+import io.fntlv.bluematrix.core.library.BlueMatrixLibraryScope;
+import io.fntlv.bluematrix.core.library.declaration.ModuleRuntimeRepositoryDeclaration;
+import io.fntlv.bluematrix.core.library.declaration.RuntimeLibraryDeclaration;
 import io.fntlv.bluematrix.loader.BlueLibraryManager;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
 
@@ -11,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class RuntimeLibraryInstaller {
+public final class RuntimeLibraryInstaller {
     private final File dataFolder;
     private final ClassLoader classLoader;
     private final List<String> repositories = new ArrayList<>();
@@ -19,12 +23,12 @@ final class RuntimeLibraryInstaller {
     private final Map<RuntimeLibraryManagerKey, BlueLibraryManager> managers = new HashMap<>();
     private final Set<RuntimeLibraryKey> loadedLibraries = new HashSet<>();
 
-    RuntimeLibraryInstaller(File dataFolder, ClassLoader classLoader) {
+    public RuntimeLibraryInstaller(File dataFolder, ClassLoader classLoader) {
         this.dataFolder = dataFolder;
         this.classLoader = classLoader;
     }
 
-    void addRepository(String repositoryUrl) {
+    public void addRepository(String repositoryUrl) {
         String normalizedRepository = RuntimeLibraryNames.normalizeRepository(repositoryUrl);
         if (repositories.contains(normalizedRepository)) {
             return;
@@ -35,7 +39,7 @@ final class RuntimeLibraryInstaller {
         }
     }
 
-    void addModuleRepository(String moduleId, String repositoryUrl) {
+    public void addModuleRepository(String moduleId, String repositoryUrl) {
         ModuleRuntimeRepositoryDeclaration declaration =
                 new ModuleRuntimeRepositoryDeclaration(moduleId, repositoryUrl);
         if (moduleRepositories.stream().anyMatch(declaration::equals)) {
@@ -51,7 +55,7 @@ final class RuntimeLibraryInstaller {
         }
     }
 
-    void download(
+    public void download(
             BlueMatrixLibraryLoader loader,
             BlueMatrixLibraryLoader.Downloader downloader,
             BlueMatrixLibraryScope scope,
@@ -77,7 +81,7 @@ final class RuntimeLibraryInstaller {
         }
     }
 
-    boolean isPresent(String className) {
+    public boolean isPresent(String className) {
         if (className == null || className.trim().isEmpty()) {
             return false;
         }
@@ -89,7 +93,11 @@ final class RuntimeLibraryInstaller {
         }
     }
 
-    BlueLibraryManager manager(BlueMatrixLibraryScope scope, String qualifier) {
+    public void loadLibrary(BlueMatrixLibraryScope scope, String qualifier, BlueLibrary library) {
+        manager(scope, qualifier).loadLibrary(library);
+    }
+
+    private BlueLibraryManager manager(BlueMatrixLibraryScope scope, String qualifier) {
         RuntimeLibraryManagerKey managerKey = new RuntimeLibraryManagerKey(scope, qualifier);
         return managers.computeIfAbsent(managerKey, ignored -> {
             BlueLibraryManager manager = new BlueLibraryManager(
@@ -109,7 +117,7 @@ final class RuntimeLibraryInstaller {
         });
     }
 
-    List<String> repositoriesForTesting(BlueMatrixLibraryScope scope, String qualifier) {
+    public List<String> repositoriesForTesting(BlueMatrixLibraryScope scope, String qualifier) {
         List<String> result = new ArrayList<>(repositories);
         if (scope == BlueMatrixLibraryScope.MODULE) {
             String normalizedQualifier = RuntimeLibraryNames.normalize(qualifier);

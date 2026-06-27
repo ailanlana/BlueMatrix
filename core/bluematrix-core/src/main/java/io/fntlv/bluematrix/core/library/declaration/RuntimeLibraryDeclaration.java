@@ -1,23 +1,25 @@
-package io.fntlv.bluematrix.core.library;
+package io.fntlv.bluematrix.core.library.declaration;
+
+import io.fntlv.bluematrix.core.library.runtime.RuntimeLibraryNames;
 
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
 
 import java.util.Objects;
 
-final class RuntimeLibraryDeclaration {
+public final class RuntimeLibraryDeclaration {
     private final BlueLibrary library;
     private final String presenceClass;
 
-    RuntimeLibraryDeclaration(BlueLibrary library, String presenceClass) {
+    public RuntimeLibraryDeclaration(BlueLibrary library, String presenceClass) {
         this.library = Objects.requireNonNull(library, "library");
         this.presenceClass = RuntimeLibraryNames.normalize(presenceClass);
     }
 
-    BlueLibrary library() {
+    public BlueLibrary library() {
         return library;
     }
 
-    String presenceClass() {
+    public String presenceClass() {
         return presenceClass;
     }
 }

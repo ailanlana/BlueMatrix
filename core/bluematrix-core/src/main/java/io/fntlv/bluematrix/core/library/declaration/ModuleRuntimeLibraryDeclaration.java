@@ -1,10 +1,10 @@
-package io.fntlv.bluematrix.core.library;
+package io.fntlv.bluematrix.core.library.declaration;
 
-final class ModuleRuntimeLibraryDeclaration {
+public final class ModuleRuntimeLibraryDeclaration {
     private final String moduleId;
     private final RuntimeLibraryDeclaration declaration;
 
-    ModuleRuntimeLibraryDeclaration(String moduleId, RuntimeLibraryDeclaration declaration) {
+    public ModuleRuntimeLibraryDeclaration(String moduleId, RuntimeLibraryDeclaration declaration) {
         if (moduleId == null || moduleId.trim().isEmpty()) {
             throw new IllegalArgumentException("moduleId cannot be blank");
         }
@@ -12,11 +12,11 @@ final class ModuleRuntimeLibraryDeclaration {
         this.declaration = declaration;
     }
 
-    String moduleId() {
+    public String moduleId() {
         return moduleId;
     }
 
-    RuntimeLibraryDeclaration declaration() {
+    public RuntimeLibraryDeclaration declaration() {
         return declaration;
     }
 }

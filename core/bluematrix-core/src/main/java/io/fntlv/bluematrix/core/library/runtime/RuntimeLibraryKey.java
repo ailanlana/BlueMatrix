@@ -1,4 +1,6 @@
-package io.fntlv.bluematrix.core.library;
+package io.fntlv.bluematrix.core.library.runtime;
+
+import io.fntlv.bluematrix.core.library.BlueMatrixLibraryScope;
 
 import java.util.Objects;
 
