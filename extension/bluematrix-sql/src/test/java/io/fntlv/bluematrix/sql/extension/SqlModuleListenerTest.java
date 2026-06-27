@@ -105,6 +105,76 @@ class SqlModuleListenerTest {
     }
 
     @Test
+    void lifecycleRegistersSourceProviderDatabase() {
+        ModuleSqlRegistry registry = new ModuleSqlRegistry();
+        ModuleSqlLifecycle lifecycle = new ModuleSqlLifecycle(registry);
+        ModuleCandidate candidate = candidate(SourceProviderModule.class);
+
+        lifecycle.register(candidate);
+        lifecycle.register(candidate);
+
+        assertTrue(registry.containsDatabase(candidate));
+        assertSame(registry.getDatabase(candidate), registry.getDatabase(candidate));
+    }
+
+    @Test
+    void lifecycleDoesNotRegisterPlainModuleDatabase() {
+        ModuleSqlRegistry registry = new ModuleSqlRegistry();
+        ModuleSqlLifecycle lifecycle = new ModuleSqlLifecycle(registry);
+        ModuleCandidate candidate = candidate(PlainModule.class);
+
+        lifecycle.register(candidate);
+
+        assertFalse(registry.containsDatabase(candidate));
+    }
+
+    @Test
+    void lifecycleInitializesDatabaseAndTables() {
+        RecordingSqlTable.reset();
+        FailingSqlTable.reset();
+        FakeSqlManager manager = new FakeSqlManager();
+        ModuleSqlRegistry registry = new TestModuleSqlRegistry(manager);
+        ModuleSqlLifecycle lifecycle = new ModuleSqlLifecycle(registry);
+        SourceProviderModule module = createModule(lifecycle, registry, SourceProviderModule.class);
+        ModuleContext context = context(module);
+
+        lifecycle.initialize(context);
+
+        assertTrue(module.database.available());
+        assertSame(manager, module.database.sqlManager());
+        assertSame(module.database, registry.getDatabase(context));
+        assertEquals(1, RecordingSqlTable.createCalls);
+        assertSame(manager, RecordingSqlTable.sqlManager);
+    }
+
+    @Test
+    void lifecycleRejectsNullDatabaseSource() {
+        ModuleSqlRegistry registry = new ModuleSqlRegistry();
+        ModuleSqlLifecycle lifecycle = new ModuleSqlLifecycle(registry);
+        NullSourceProviderModule module = new NullSourceProviderModule();
+        lifecycle.register(candidate(NullSourceProviderModule.class));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> lifecycle.initialize(context(module)));
+
+        assertExceptionMessageContains(exception, "source cannot be null");
+    }
+
+    @Test
+    void lifecycleClosesRegisteredDatabase() {
+        FakeSqlManager manager = new FakeSqlManager();
+        TestModuleSqlRegistry registry = new TestModuleSqlRegistry(manager);
+        ModuleSqlLifecycle lifecycle = new ModuleSqlLifecycle(registry);
+        SourceProviderModule module = createModule(lifecycle, registry, SourceProviderModule.class);
+        ModuleContext context = context(module);
+
+        lifecycle.initialize(context);
+        lifecycle.close(context);
+
+        assertEquals(1, ((RecordingBlueDatabase) registry.getDatabase(context)).closeCalls);
+    }
+
+    @Test
     void moduleWithSourceProviderInitializesInjectedDatabase() {
         FakeSqlManager manager = new FakeSqlManager();
         ModuleSqlRegistry registry = new TestModuleSqlRegistry(manager);
@@ -273,11 +343,29 @@ class SqlModuleListenerTest {
     private <T extends Module> T createModule(SqlModuleListener listener,
                                               ModuleSqlRegistry registry,
                                               Class<T> type) {
+        return createModule(candidate -> listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate)), registry, type);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends Module> T createModule(ModuleSqlLifecycle lifecycle,
+                                              ModuleSqlRegistry registry,
+                                              Class<T> type) {
+        return createModule(lifecycle::register, registry, type);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends Module> T createModule(SqlModuleRegistrar registrar,
+                                              ModuleSqlRegistry registry,
+                                              Class<T> type) {
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
         ModuleCandidate candidate = candidate(type);
         parameterResolvers.registerIfAbsent(new SqlDatabaseResolver(registry));
-        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
+        registrar.register(candidate);
         return (T) new DefaultModuleInstanceFactory(parameterResolvers).create(candidate);
+    }
+
+    private interface SqlModuleRegistrar {
+        void register(ModuleCandidate candidate);
     }
 
     @ModuleInfo(id = "constructor-sql", name = "Constructor SQL")
