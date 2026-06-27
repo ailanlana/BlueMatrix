@@ -125,6 +125,69 @@ class PersistenceModuleListenerTest {
     }
 
     @Test
+    void lifecycleRegistersSourceProviderStorage() {
+        TestModulePersistenceRegistry registry = new TestModulePersistenceRegistry();
+        ModulePersistenceLifecycle lifecycle = new ModulePersistenceLifecycle(registry);
+        ModuleCandidate candidate = candidate(StorageProviderModule.class);
+
+        lifecycle.register(candidate);
+
+        assertTrue(registry.containsStorage(candidate));
+    }
+
+    @Test
+    void lifecycleDoesNotRegisterPlainModuleStorage() {
+        TestModulePersistenceRegistry registry = new TestModulePersistenceRegistry();
+        ModulePersistenceLifecycle lifecycle = new ModulePersistenceLifecycle(registry);
+        ModuleCandidate candidate = candidate(PlainModule.class);
+
+        lifecycle.register(candidate);
+
+        assertFalse(registry.containsStorage(candidate));
+    }
+
+    @Test
+    void lifecycleInitializesStorageAndRepositories() {
+        TestModulePersistenceRegistry registry = new TestModulePersistenceRegistry();
+        ModulePersistenceLifecycle lifecycle = new ModulePersistenceLifecycle(registry);
+        StorageProviderModule module = createModule(lifecycle, registry, StorageProviderModule.class);
+        ModuleContext context = context(module);
+        RecordingBlueStorage storage = (RecordingBlueStorage) registry.getStorage(context);
+
+        lifecycle.initialize(context);
+
+        assertTrue(module.storage.available());
+        assertEquals(1, storage.initializeCalls);
+        assertTrue(storage.repositoryTypes.contains(AutoRegisteredEntity.class));
+    }
+
+    @Test
+    void lifecycleRejectsNullStorageSpec() {
+        TestModulePersistenceRegistry registry = new TestModulePersistenceRegistry();
+        ModulePersistenceLifecycle lifecycle = new ModulePersistenceLifecycle(registry);
+        NullSpecSourceProviderModule module = createModule(lifecycle, registry, NullSpecSourceProviderModule.class);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> lifecycle.initialize(context(module)));
+
+        assertExceptionMessageContains(exception, "storage spec cannot be null");
+    }
+
+    @Test
+    void lifecycleClosesRegisteredStorage() {
+        TestModulePersistenceRegistry registry = new TestModulePersistenceRegistry();
+        ModulePersistenceLifecycle lifecycle = new ModulePersistenceLifecycle(registry);
+        StorageProviderModule module = createModule(lifecycle, registry, StorageProviderModule.class);
+        ModuleContext context = context(module);
+        RecordingBlueStorage storage = (RecordingBlueStorage) registry.getStorage(context);
+
+        lifecycle.initialize(context);
+        lifecycle.close(context);
+
+        assertEquals(1, storage.closeCalls);
+    }
+
+    @Test
     void sourceProviderCanInjectBlueStorageField() {
         TestModulePersistenceRegistry registry = new TestModulePersistenceRegistry();
         PersistenceModuleListener listener = new PersistenceModuleListener(registry);
@@ -326,11 +389,39 @@ class PersistenceModuleListenerTest {
     private <T extends Module> T createModule(PersistenceModuleListener listener,
                                               ModulePersistenceRegistry registry,
                                               Class<T> type) {
+        return createModule(new ModuleRegistrar() {
+            @Override
+            public void register(ModuleCandidate candidate) {
+                listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
+            }
+        }, registry, type);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends Module> T createModule(final ModulePersistenceLifecycle lifecycle,
+                                              ModulePersistenceRegistry registry,
+                                              Class<T> type) {
+        return createModule(new ModuleRegistrar() {
+            @Override
+            public void register(ModuleCandidate candidate) {
+                lifecycle.register(candidate);
+            }
+        }, registry, type);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends Module> T createModule(ModuleRegistrar registrar,
+                                              ModulePersistenceRegistry registry,
+                                              Class<T> type) {
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
         ModuleCandidate candidate = candidate(type);
         parameterResolvers.registerIfAbsent(new PersistenceStorageResolver(registry));
-        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
+        registrar.register(candidate);
         return (T) new DefaultModuleInstanceFactory(parameterResolvers).create(candidate);
+    }
+
+    private interface ModuleRegistrar {
+        void register(ModuleCandidate candidate);
     }
 
     private static void assertCauseMessageContains(Throwable throwable, String expected) {
@@ -515,6 +606,31 @@ class PersistenceModuleListenerTest {
         @Override
         public BlueStorageSource getStorageSource() {
             return localFileSource(baseDirectory);
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "null-spec-source-provider", name = "Null Spec Source Provider")
+    private static class NullSpecSourceProviderModule implements Module, BlueStorageSourceProvider {
+        @Override
+        public BlueStorageSource getStorageSource() {
+            return new BlueStorageSource() {
+                @Override
+                public BlueStorageSpec toSpec(BlueStorageSourceContext context) {
+                    return null;
+                }
+            };
         }
 
         @Override
