@@ -8,6 +8,7 @@ import io.fntlv.bluematrix.core.event.ModuleEventBus;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
 import io.fntlv.bluematrix.core.module.registration.DefaultModuleRegistrar;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationStageResult;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.OtherInjectionContext;
 import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
@@ -98,21 +99,21 @@ class DefaultModuleOrchestratorTest {
 
     private static class FakeProvider implements ModuleProvider {
         @Override
-        public List<ModuleCandidate> discoverModules() {
-            return Arrays.asList(
+        public ModuleRegistrationStageResult<ModuleCandidate> discoverModules() {
+            return ModuleRegistrationStageResult.of(Arrays.asList(
                     provided(FirstDuplicateModule.class),
                     provided(SecondDuplicateModule.class)
-            );
+            ));
         }
     }
 
     private static class FailingThenWorkingProvider implements ModuleProvider {
         @Override
-        public List<ModuleCandidate> discoverModules() {
-            return Arrays.asList(
+        public ModuleRegistrationStageResult<ModuleCandidate> discoverModules() {
+            return ModuleRegistrationStageResult.of(Arrays.asList(
                     provided(FailingModule.class),
                     provided(WorkingModule.class)
-            );
+            ));
         }
     }
 

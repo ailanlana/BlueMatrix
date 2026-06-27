@@ -121,9 +121,12 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
 
     private ModuleRegistrationStageResult<ModuleCandidate> discoverModules() {
         List<ModuleCandidate> modules = new ArrayList<>();
+        List<ModuleRegistrationIssue> issues = new ArrayList<>();
         for (ModuleProvider moduleProvider : moduleProviders) {
             try {
-                modules.addAll(moduleProvider.discoverModules());
+                ModuleRegistrationStageResult<ModuleCandidate> result = moduleProvider.discoverModules();
+                modules.addAll(result.passed());
+                issues.addAll(result.issues().all());
             } catch (ModuleDiscoveryException e) {
                 throw new ModuleRegistrationException(
                         "Failed to discover modules from provider: " + moduleProvider.getClass().getName(),
@@ -136,7 +139,7 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
                 );
             }
         }
-        return ModuleRegistrationStageResult.of(modules);
+        return ModuleRegistrationStageResult.of(modules, new ModuleRegistrationIssues(issues));
     }
 
     private ModuleRegistrationStageResult<ModuleCandidate> resolveDependencies(List<ModuleCandidate> modules) {

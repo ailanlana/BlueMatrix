@@ -2,8 +2,11 @@ package io.fntlv.bluematrix.core.registration.provider;
 
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryScope;
-import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryLoader;
+import io.fntlv.bluematrix.core.module.registration.library.ModuleRuntimeLibraryLoader;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationStageResult;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssueType;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.RuntimeLibraryLoadFailedIssue;
 import io.fntlv.bluematrix.core.module.registration.provider.PackageModuleProvider;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
 import org.junit.jupiter.api.Test;
@@ -28,7 +31,7 @@ class PackageModuleProviderTest {
     void discoversPackageModules() {
         PackageModuleProvider provider = new PackageModuleProvider(FIXTURE_PACKAGE);
 
-        List<String> ids = ids(provider.discoverModules());
+        List<String> ids = ids(provider.discoverModules().passed());
 
         assertTrue(ids.contains("package-plain-module"));
         assertTrue(ids.contains("package-library-module"));
@@ -45,7 +48,7 @@ class PackageModuleProviderTest {
                     new ModuleRuntimeLibraryLoader(libraryLoader)
             );
 
-            List<String> ids = ids(provider.discoverModules());
+            List<String> ids = ids(provider.discoverModules().passed());
 
             assertTrue(ids.contains("package-library-module"));
             assertEquals(1, downloader.calls);
@@ -69,10 +72,17 @@ class PackageModuleProviderTest {
                     new ModuleRuntimeLibraryLoader(libraryLoader)
             );
 
-            List<String> ids = ids(provider.discoverModules());
+            ModuleRegistrationStageResult<ModuleCandidate> result = provider.discoverModules();
+            List<String> ids = ids(result.passed());
 
             assertTrue(ids.contains("package-plain-module"));
             assertFalse(ids.contains("package-library-module"));
+            assertEquals(1, result.issues().size());
+            RuntimeLibraryLoadFailedIssue issue = (RuntimeLibraryLoadFailedIssue) result.issues().all().get(0);
+            assertEquals(ModuleRegistrationIssueType.RUNTIME_LIBRARY_LOAD_FAILED, issue.type());
+            assertEquals("package-library-module", issue.moduleId());
+            assertEquals("Package Library Module", issue.moduleName());
+            assertEquals("com.example:package-lib:1.0.0", issue.failedLibraries().get(0));
         } finally {
             BlueMatrixLibraryLoader.downloaderForTesting(null);
         }

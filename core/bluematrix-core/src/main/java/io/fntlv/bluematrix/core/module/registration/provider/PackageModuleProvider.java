@@ -1,12 +1,16 @@
 package io.fntlv.bluematrix.core.module.registration.provider;
 
-import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryException;
-import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryLoader;
+import io.fntlv.bluematrix.core.module.registration.library.ModuleRuntimeLibraryLoadResult;
+import io.fntlv.bluematrix.core.module.registration.library.ModuleRuntimeLibraryLoader;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryException;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleDescriptor;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationStageResult;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssue;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssues;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.RuntimeLibraryLoadFailedIssue;
 import io.fntlv.bluematrix.logging.BlueLogger;
 import io.fntlv.bluematrix.logging.BlueLoggerFactory;
 import org.reflections.Reflections;
@@ -32,8 +36,9 @@ public class PackageModuleProvider implements ModuleProvider {
     }
 
     @Override
-    public List<ModuleCandidate> discoverModules() {
+    public ModuleRegistrationStageResult<ModuleCandidate> discoverModules() {
         List<ModuleCandidate> discoveredModules = new ArrayList<>();
+        List<ModuleRegistrationIssue> issues = new ArrayList<>();
         List<Class<? extends Module>> classes;
         Reflections reflections;
         try {
@@ -46,28 +51,31 @@ public class PackageModuleProvider implements ModuleProvider {
         for (Class<? extends Module> clazz : classes) {
             ModuleInfo info = clazz.getAnnotation(ModuleInfo.class);
             ModuleDescriptor descriptor = ModuleDescriptor.from(clazz, info);
-            if (loadRuntimeLibraries(descriptor)) {
+            ModuleRuntimeLibraryLoadResult libraryResult = loadRuntimeLibraries(descriptor);
+            if (libraryResult.success()) {
                 ModuleCandidate candidate = new ModuleCandidate(clazz, descriptor);
                 discoveredModules.add(candidate);
+            } else {
+                issues.add(new RuntimeLibraryLoadFailedIssue(
+                        descriptor,
+                        clazz,
+                        libraryResult,
+                        "Failed to load runtime libraries: " + libraryResult.failureSummary()
+                ));
+                LOGGER.warn("Skipping module: {} ({}) - failed to load runtime libraries: {}",
+                        descriptor.name(),
+                        descriptor.id(),
+                        libraryResult.failureSummary());
             }
         }
-        return new ArrayList<>(discoveredModules);
+        return ModuleRegistrationStageResult.of(discoveredModules, new ModuleRegistrationIssues(issues));
     }
 
-    private boolean loadRuntimeLibraries(ModuleDescriptor descriptor) {
+    private ModuleRuntimeLibraryLoadResult loadRuntimeLibraries(ModuleDescriptor descriptor) {
         if (runtimeLibraryLoader == null) {
-            return true;
+            return ModuleRuntimeLibraryLoadResult.success(descriptor.id());
         }
-        try {
-            runtimeLibraryLoader.load(descriptor);
-            return true;
-        } catch (ModuleRuntimeLibraryException e) {
-            LOGGER.warn("Skipping module: {} ({}) - {}",
-                    descriptor.name(),
-                    descriptor.id(),
-                    e.getMessage());
-            return false;
-        }
+        return runtimeLibraryLoader.load(descriptor);
     }
 
     private Reflections createReflections(String packagePath) {

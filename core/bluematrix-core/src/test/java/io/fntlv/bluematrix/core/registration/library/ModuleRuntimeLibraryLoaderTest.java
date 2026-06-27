@@ -1,5 +1,7 @@
-package io.fntlv.bluematrix.core.library;
+package io.fntlv.bluematrix.core.module.registration.library;
 
+import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
+import io.fntlv.bluematrix.core.library.BlueMatrixLibraryScope;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleDescriptor;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
@@ -8,10 +10,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
+import java.lang.reflect.Method;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ModuleRuntimeLibraryLoaderTest {
@@ -26,8 +29,9 @@ class ModuleRuntimeLibraryLoaderTest {
             BlueMatrixLibraryLoader libraryLoader = new BlueMatrixLibraryLoader(tempDir, getClass().getClassLoader());
             ModuleRuntimeLibraryLoader runtimeLibraryLoader = new ModuleRuntimeLibraryLoader(libraryLoader);
 
-            runtimeLibraryLoader.load(descriptor(LibraryModule.class));
+            ModuleRuntimeLibraryLoadResult result = runtimeLibraryLoader.load(descriptor(LibraryModule.class));
 
+            assertTrue(result.success());
             assertEquals(1, downloader.calls);
             assertEquals(BlueMatrixLibraryScope.MODULE, downloader.scope);
             assertEquals("library-module", downloader.qualifier);
@@ -47,10 +51,7 @@ class ModuleRuntimeLibraryLoaderTest {
 
             runtimeLibraryLoader.load(descriptor(RepositoryLibraryModule.class));
 
-            List<String> repositories = libraryLoader.repositoriesForTesting(
-                    BlueMatrixLibraryScope.MODULE,
-                    "repository-library-module"
-            );
+            List<String> repositories = repositoriesForTesting(libraryLoader, "repository-library-module");
             assertTrue(repositories.contains("https://repo.example.com/releases"));
             assertEquals(1, downloader.calls);
         } finally {
@@ -66,8 +67,9 @@ class ModuleRuntimeLibraryLoaderTest {
             BlueMatrixLibraryLoader libraryLoader = new BlueMatrixLibraryLoader(tempDir, getClass().getClassLoader());
             ModuleRuntimeLibraryLoader runtimeLibraryLoader = new ModuleRuntimeLibraryLoader(libraryLoader);
 
-            runtimeLibraryLoader.load(descriptor(EmptyLibraryModule.class));
+            ModuleRuntimeLibraryLoadResult result = runtimeLibraryLoader.load(descriptor(EmptyLibraryModule.class));
 
+            assertTrue(result.success());
             assertEquals(0, downloader.calls);
         } finally {
             BlueMatrixLibraryLoader.downloaderForTesting(null);
@@ -91,7 +93,7 @@ class ModuleRuntimeLibraryLoaderTest {
     }
 
     @Test
-    void downloadFailureThrowsModuleRuntimeLibraryException() {
+    void downloadFailureReturnsFailedLibraryResult() {
         BlueMatrixLibraryLoader.downloaderForTesting((bootstrap, dataFolder, classLoader, scope, qualifier, library) -> {
             throw new IllegalStateException("download failed");
         });
@@ -99,24 +101,47 @@ class ModuleRuntimeLibraryLoaderTest {
             BlueMatrixLibraryLoader libraryLoader = new BlueMatrixLibraryLoader(tempDir, getClass().getClassLoader());
             ModuleRuntimeLibraryLoader runtimeLibraryLoader = new ModuleRuntimeLibraryLoader(libraryLoader);
 
-            assertThrows(ModuleRuntimeLibraryException.class,
-                    () -> runtimeLibraryLoader.load(descriptor(LibraryModule.class)));
+            ModuleRuntimeLibraryLoadResult result = runtimeLibraryLoader.load(descriptor(LibraryModule.class));
+
+            assertFalse(result.success());
+            assertTrue(result.failed());
+            assertEquals("library-module", result.moduleId());
+            assertEquals(1, result.failures().size());
+            assertEquals("com.example:module-lib:1.0.0", result.failedLibraries().get(0));
         } finally {
             BlueMatrixLibraryLoader.downloaderForTesting(null);
         }
     }
 
     @Test
-    void blankRepositoryThrowsModuleRuntimeLibraryException() {
+    void blankRepositoryReturnsFailureResult() {
         BlueMatrixLibraryLoader libraryLoader = new BlueMatrixLibraryLoader(tempDir, getClass().getClassLoader());
         ModuleRuntimeLibraryLoader runtimeLibraryLoader = new ModuleRuntimeLibraryLoader(libraryLoader);
 
-        assertThrows(ModuleRuntimeLibraryException.class,
-                () -> runtimeLibraryLoader.load(descriptor(BlankRepositoryModule.class)));
+        ModuleRuntimeLibraryLoadResult result = runtimeLibraryLoader.load(descriptor(BlankRepositoryModule.class));
+
+        assertFalse(result.success());
+        assertEquals(1, result.failures().size());
+        assertTrue(result.failedLibraries().isEmpty());
     }
 
     private static ModuleDescriptor descriptor(Class<? extends Module> moduleClass) {
         return ModuleDescriptor.from(moduleClass, moduleClass.getAnnotation(ModuleInfo.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> repositoriesForTesting(BlueMatrixLibraryLoader libraryLoader, String moduleId) {
+        try {
+            Method method = BlueMatrixLibraryLoader.class.getDeclaredMethod(
+                    "repositoriesForTesting",
+                    BlueMatrixLibraryScope.class,
+                    String.class
+            );
+            method.setAccessible(true);
+            return (List<String>) method.invoke(libraryLoader, BlueMatrixLibraryScope.MODULE, moduleId);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("Cannot inspect module repositories", e);
+        }
     }
 
     @ModuleInfo(id = "library-module", name = "Library Module", libraries = "com.example:module-lib:1.0.0")

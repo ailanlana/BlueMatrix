@@ -1,13 +1,17 @@
 package io.fntlv.bluematrix.core.module.registration.provider;
 
-import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryException;
-import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryLoader;
+import io.fntlv.bluematrix.core.module.registration.library.ModuleRuntimeLibraryLoadResult;
+import io.fntlv.bluematrix.core.module.registration.library.ModuleRuntimeLibraryLoader;
 import io.fntlv.bluematrix.logging.BlueLogger;
 import io.fntlv.bluematrix.logging.BlueLoggerFactory;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryException;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationStageResult;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssue;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssues;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.RuntimeLibraryLoadFailedIssue;
 import io.fntlv.bluematrix.loader.BlueClassLoaderSupport;
 import io.fntlv.bluematrix.loader.BlueMatrixLoaderException;
 
@@ -54,21 +58,24 @@ public class JarModuleProvider implements ModuleProvider {
     }
 
     @Override
-    public List<ModuleCandidate> discoverModules() {
+    public ModuleRegistrationStageResult<ModuleCandidate> discoverModules() {
         List<ModuleCandidate> discoveredModules = new ArrayList<>();
+        List<ModuleRegistrationIssue> issues = new ArrayList<>();
         if (!ensureJarDirectory()) {
-            return discoveredModules;
+            return ModuleRegistrationStageResult.of(discoveredModules);
         }
 
         File[] jarFiles = jarDirectory.listFiles((dir, name) -> name.toLowerCase().endsWith(".jar"));
         if (jarFiles == null || jarFiles.length == 0) {
-            return discoveredModules;
+            return ModuleRegistrationStageResult.of(discoveredModules);
         }
 
         Arrays.sort(jarFiles, Comparator.comparing(File::getName));
         for (File jarFile : jarFiles) {
             try {
-                discoveredModules.addAll(discoverModulesInJar(jarFile));
+                ModuleRegistrationStageResult<ModuleCandidate> result = discoverModulesInJar(jarFile);
+                discoveredModules.addAll(result.passed());
+                issues.addAll(result.issues().all());
             } catch (ModuleDiscoveryException e) {
                 LOGGER.warn(
                         "Skipping jar module file: {} - {}",
@@ -77,7 +84,7 @@ public class JarModuleProvider implements ModuleProvider {
                 );
             }
         }
-        return discoveredModules;
+        return ModuleRegistrationStageResult.of(discoveredModules, new ModuleRegistrationIssues(issues));
     }
 
     private boolean ensureJarDirectory() {
@@ -93,8 +100,9 @@ public class JarModuleProvider implements ModuleProvider {
         return true;
     }
 
-    private List<ModuleCandidate> discoverModulesInJar(File jarFile) {
+    private ModuleRegistrationStageResult<ModuleCandidate> discoverModulesInJar(File jarFile) {
         List<ModuleCandidate> discoveredModules = new ArrayList<>();
+        List<ModuleRegistrationIssue> issues = new ArrayList<>();
         try {
             try (JarFile jar = new JarFile(jarFile)) {
                 List<JarEntry> classEntries = new ArrayList<>();
@@ -106,14 +114,17 @@ public class JarModuleProvider implements ModuleProvider {
 
                 for (JarEntry entry : classEntries) {
                     readModuleMetadata(jarFile, jar, entry)
-                            .flatMap(metadata -> discoverModuleClass(jarFile, metadata))
-                            .ifPresent(discoveredModules::add);
+                            .map(metadata -> discoverModuleClass(jarFile, metadata))
+                            .ifPresent(result -> {
+                                discoveredModules.addAll(result.passed());
+                                issues.addAll(result.issues().all());
+                            });
                 }
             }
         } catch (Exception e) {
             throw new ModuleDiscoveryException("Failed to discover modules from jar: " + jarFile.getAbsolutePath(), e);
         }
-        return discoveredModules;
+        return ModuleRegistrationStageResult.of(discoveredModules, new ModuleRegistrationIssues(issues));
     }
 
     private java.util.Optional<JarModuleMetadata> readModuleMetadata(File jarFile, JarFile jar, JarEntry entry) {
@@ -145,23 +156,41 @@ public class JarModuleProvider implements ModuleProvider {
         }
     }
 
-    private java.util.Optional<ModuleCandidate> discoverModuleClass(File jarFile, JarModuleMetadata metadata) {
+    private ModuleRegistrationStageResult<ModuleCandidate> discoverModuleClass(File jarFile, JarModuleMetadata metadata) {
         String className = metadata.className();
         try {
-            if (!loadRuntimeLibraries(jarFile, metadata)) {
-                return java.util.Optional.empty();
+            ModuleRuntimeLibraryLoadResult libraryResult = loadRuntimeLibraries(metadata);
+            if (libraryResult.failed()) {
+                LOGGER.warn(
+                        "Skipping module in jar: {} -> {} ({}) - failed to load runtime libraries: {}",
+                        jarFile.getName(),
+                        metadata.className(),
+                        metadata.id(),
+                        libraryResult.failureSummary()
+                );
+                ModuleRegistrationIssue issue = new RuntimeLibraryLoadFailedIssue(
+                        metadata.id(),
+                        metadata.name(),
+                        metadata.className(),
+                        libraryResult,
+                        "Failed to load runtime libraries: " + libraryResult.failureSummary()
+                );
+                return ModuleRegistrationStageResult.of(
+                        java.util.Collections.emptyList(),
+                        new ModuleRegistrationIssues(java.util.Collections.singletonList(issue))
+                );
             }
             addJarToClasspath(jarFile);
             Class<?> clazz = classLoader.loadClass(className);
             if (!isModuleClass(clazz)) {
-                return java.util.Optional.empty();
+                return ModuleRegistrationStageResult.empty();
             }
 
             @SuppressWarnings("unchecked")
             Class<? extends Module> moduleClass = (Class<? extends Module>) clazz;
             ModuleInfo info = moduleClass.getAnnotation(ModuleInfo.class);
             ModuleCandidate candidate = new ModuleCandidate(moduleClass, info);
-            return java.util.Optional.of(candidate);
+            return ModuleRegistrationStageResult.of(java.util.Collections.singletonList(candidate));
         } catch (Throwable e) {
             LOGGER.warn(
                     "Failed to inspect class in jar: {} -> {} - {}",
@@ -169,27 +198,15 @@ public class JarModuleProvider implements ModuleProvider {
                     className,
                     describe(e)
             );
-            return java.util.Optional.empty();
+            return ModuleRegistrationStageResult.empty();
         }
     }
 
-    private boolean loadRuntimeLibraries(File jarFile, JarModuleMetadata metadata) {
+    private ModuleRuntimeLibraryLoadResult loadRuntimeLibraries(JarModuleMetadata metadata) {
         if (runtimeLibraryLoader == null) {
-            return true;
+            return ModuleRuntimeLibraryLoadResult.success(metadata.id());
         }
-        try {
-            runtimeLibraryLoader.load(metadata.id(), metadata.repositories(), metadata.libraries());
-            return true;
-        } catch (ModuleRuntimeLibraryException e) {
-            LOGGER.warn(
-                    "Skipping module in jar: {} -> {} ({}) - {}",
-                    jarFile.getName(),
-                    metadata.className(),
-                    metadata.id(),
-                    e.getMessage()
-            );
-            return false;
-        }
+        return runtimeLibraryLoader.load(metadata.id(), metadata.repositories(), metadata.libraries());
     }
 
     private String describe(Throwable throwable) {

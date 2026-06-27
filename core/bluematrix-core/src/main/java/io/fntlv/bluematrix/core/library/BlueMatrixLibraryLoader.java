@@ -97,6 +97,14 @@ public final class BlueMatrixLibraryLoader {
         return this;
     }
 
+    public void downloadModuleLibrary(String moduleId, String coordinates) {
+        downloadModuleLibrary(moduleId, BlueLibraryFactory.of(coordinates));
+    }
+
+    public void downloadModuleLibrary(String moduleId, BlueLibrary library) {
+        download(BlueMatrixLibraryScope.MODULE, moduleId, library);
+    }
+
     public void loadModuleLibraries(String moduleId) {
         if (moduleId == null || moduleId.trim().isEmpty()) {
             throw new IllegalArgumentException("moduleId cannot be blank");

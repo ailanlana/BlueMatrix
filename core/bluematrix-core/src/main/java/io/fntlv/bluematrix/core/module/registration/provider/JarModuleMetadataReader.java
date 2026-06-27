@@ -29,9 +29,11 @@ final class JarModuleMetadataReader {
                 return Optional.empty();
             }
             String id = stringValue(moduleInfo, "id");
+            String name = stringValue(moduleInfo, "name");
             return Optional.of(new JarModuleMetadata(
                     classFile.getName(),
                     id,
+                    name,
                     stringArrayValue(moduleInfo, "repositories"),
                     stringArrayValue(moduleInfo, "libraries")
             ));

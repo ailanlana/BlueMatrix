@@ -3,6 +3,8 @@ package io.fntlv.bluematrix.core.module.registration;
 import io.fntlv.bluematrix.core.event.DefaultModuleEventBus;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
 import io.fntlv.bluematrix.core.event.ModuleEventListener;
+import io.fntlv.bluematrix.core.module.registration.library.ModuleRuntimeLibraryFailure;
+import io.fntlv.bluematrix.core.module.registration.library.ModuleRuntimeLibraryLoadResult;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegisterEvent;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
@@ -17,6 +19,7 @@ import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssu
 import io.fntlv.bluematrix.core.module.registration.issue.issues.DuplicateModuleIdIssue;
 import io.fntlv.bluematrix.core.module.registration.issue.issues.InstantiationFailedIssue;
 import io.fntlv.bluematrix.core.module.registration.issue.issues.MissingRequiredDependencyIssue;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.RuntimeLibraryLoadFailedIssue;
 import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
 import io.fntlv.bluematrix.core.registration.scanned.ScanPackageMarker;
 import io.fntlv.bluematrix.core.registration.scanned.ScanPackageType;
@@ -177,6 +180,24 @@ class DefaultModuleRegistrarTest {
     }
 
     @Test
+    void discoveryIssuesAreMergedIntoRegistrationResult() {
+        ModuleRegistrar registrar = new DefaultModuleRegistrar(Collections.singletonList(
+                new LibraryIssueProvider()
+        ));
+
+        ModuleRegistrationResult result = registrar.register();
+
+        assertTrue(result.contexts().isEmpty());
+        assertEquals(1, result.issues().size());
+        RuntimeLibraryLoadFailedIssue issue = assertInstanceOf(
+                RuntimeLibraryLoadFailedIssue.class,
+                result.issues().all().get(0)
+        );
+        assertIssue(issue, ModuleRegistrationIssueType.RUNTIME_LIBRARY_LOAD_FAILED, "library-issue");
+        assertEquals(Collections.singletonList("com.example:missing:1.0.0"), issue.failedLibraries());
+    }
+
+    @Test
     void discoveryRuntimeErrorThrowsRegistrationException() {
         ModuleRegistrar registrar = new DefaultModuleRegistrar(Collections.singletonList(
                 new RuntimeFailingDiscoveryProvider()
@@ -269,10 +290,10 @@ class DefaultModuleRegistrarTest {
         }
 
         @Override
-        public List<ModuleCandidate> discoverModules() {
-            return moduleClasses.stream()
+        public ModuleRegistrationStageResult<ModuleCandidate> discoverModules() {
+            return ModuleRegistrationStageResult.of(moduleClasses.stream()
                     .map(moduleClass -> new ModuleCandidate(moduleClass, moduleClass.getAnnotation(ModuleInfo.class)))
-                    .collect(java.util.stream.Collectors.toList());
+                    .collect(java.util.stream.Collectors.toList()));
         }
 
         @Override
@@ -321,15 +342,41 @@ class DefaultModuleRegistrarTest {
 
     private static class FailingDiscoveryProvider implements ModuleProvider {
         @Override
-        public List<ModuleCandidate> discoverModules() {
+        public ModuleRegistrationStageResult<ModuleCandidate> discoverModules() {
             throw new ModuleDiscoveryException("Expected discovery failure");
         }
     }
 
     private static class RuntimeFailingDiscoveryProvider implements ModuleProvider {
         @Override
-        public List<ModuleCandidate> discoverModules() {
+        public ModuleRegistrationStageResult<ModuleCandidate> discoverModules() {
             throw new IllegalStateException("Expected discovery runtime failure");
+        }
+    }
+
+    private static class LibraryIssueProvider implements ModuleProvider {
+        @Override
+        public ModuleRegistrationStageResult<ModuleCandidate> discoverModules() {
+            ModuleRuntimeLibraryLoadResult result = ModuleRuntimeLibraryLoadResult.of(
+                    "library-issue",
+                    Collections.singletonList(new ModuleRuntimeLibraryFailure(
+                            "com.example:missing:1.0.0",
+                            new IllegalStateException("download failed")
+                    ))
+            );
+            RuntimeLibraryLoadFailedIssue issue = new RuntimeLibraryLoadFailedIssue(
+                    "library-issue",
+                    "Library Issue",
+                    LibraryIssueModule.class.getName(),
+                    result,
+                    "Failed to load runtime libraries: com.example:missing:1.0.0"
+            );
+            return ModuleRegistrationStageResult.of(
+                    Collections.emptyList(),
+                    new io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssues(
+                            Collections.singletonList(issue)
+                    )
+            );
         }
     }
 
@@ -434,6 +481,21 @@ class DefaultModuleRegistrarTest {
 
     @ModuleInfo(id = "depends-on-missing", name = "Depends on Missing", dependencies = "missing")
     private static class DependsOnMissingModule implements Module {
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "library-issue", name = "Library Issue")
+    private static class LibraryIssueModule implements Module {
         @Override
         public void onLoad() {
         }

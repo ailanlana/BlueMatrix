@@ -19,5 +19,10 @@ public enum ModuleRegistrationIssueType {
     /**
      * A module candidate was dependency-ready but failed during instance creation.
      */
-    INSTANTIATION_FAILED
+    INSTANTIATION_FAILED,
+
+    /**
+     * A module candidate could not load its declared runtime libraries.
+     */
+    RUNTIME_LIBRARY_LOAD_FAILED
 }

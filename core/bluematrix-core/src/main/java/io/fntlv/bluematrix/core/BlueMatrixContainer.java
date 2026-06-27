@@ -1,7 +1,7 @@
 package io.fntlv.bluematrix.core;
 
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
-import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryLoader;
+import io.fntlv.bluematrix.core.module.registration.library.ModuleRuntimeLibraryLoader;
 import io.fntlv.bluematrix.core.event.DefaultModuleEventBus;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionLoader;

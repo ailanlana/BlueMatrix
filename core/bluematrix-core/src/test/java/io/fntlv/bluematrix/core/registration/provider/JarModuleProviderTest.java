@@ -2,12 +2,15 @@ package io.fntlv.bluematrix.core.module.registration.provider;
 
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryScope;
-import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryLoader;
+import io.fntlv.bluematrix.core.module.registration.library.ModuleRuntimeLibraryLoader;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.ModuleReflectionsFactory;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryException;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationStageResult;
+import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssueType;
+import io.fntlv.bluematrix.core.module.registration.issue.issues.RuntimeLibraryLoadFailedIssue;
 import io.fntlv.bluematrix.loader.BlueClassLoaderSupport;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
 import org.junit.jupiter.api.Test;
@@ -36,7 +39,7 @@ class JarModuleProviderTest {
     void emptyDirectoryDiscoversNoModules() {
         JarModuleProvider provider = new JarModuleProvider(tempDir);
 
-        assertTrue(provider.discoverModules().isEmpty());
+        assertTrue(provider.discoverModules().passed().isEmpty());
     }
 
     @Test
@@ -44,7 +47,7 @@ class JarModuleProviderTest {
         Files.write(new File(tempDir, "not-a-module.txt").toPath(), new byte[]{1});
         JarModuleProvider provider = new JarModuleProvider(tempDir);
 
-        assertTrue(provider.discoverModules().isEmpty());
+        assertTrue(provider.discoverModules().passed().isEmpty());
     }
 
     @Test
@@ -52,7 +55,7 @@ class JarModuleProviderTest {
         writeJar(new File(tempDir, "module.jar"), JarModule.class);
         JarModuleProvider provider = new JarModuleProvider(tempDir);
 
-        List<ModuleCandidate> modules = provider.discoverModules();
+        List<ModuleCandidate> modules = provider.discoverModules().passed();
 
         assertEquals(1, modules.size());
         assertEquals("jar-module", modules.get(0).id());
@@ -63,7 +66,7 @@ class JarModuleProviderTest {
         writeJar(new File(tempDir, "module.jar"), JarModuleWithScanPackage.class, PlainClass.class);
         JarModuleProvider provider = new JarModuleProvider(tempDir);
 
-        ModuleCandidate module = provider.discoverModules().stream()
+        ModuleCandidate module = provider.discoverModules().passed().stream()
                 .filter(candidate -> candidate.id().equals("jar-module-with-scan-package"))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("module not discovered"));
@@ -80,7 +83,7 @@ class JarModuleProviderTest {
         writeJar(new File(tempDir, "module.jar"), JarModule.class);
         JarModuleProvider provider = new JarModuleProvider(tempDir);
 
-        List<ModuleCandidate> modules = provider.discoverModules();
+        List<ModuleCandidate> modules = provider.discoverModules().passed();
 
         assertEquals(1, modules.size());
         assertEquals("jar-module", modules.get(0).id());
@@ -91,7 +94,7 @@ class JarModuleProviderTest {
         writeJar(new File(tempDir, "mixed.jar"), PlainClass.class, ModuleWithoutInfo.class);
         JarModuleProvider provider = new JarModuleProvider(tempDir);
 
-        assertTrue(provider.discoverModules().isEmpty());
+        assertTrue(provider.discoverModules().passed().isEmpty());
     }
 
     @Test
@@ -99,7 +102,7 @@ class JarModuleProviderTest {
         writeJar(new File(tempDir, "multi.jar"), JarModule.class, SecondJarModule.class);
         JarModuleProvider provider = new JarModuleProvider(tempDir);
 
-        List<String> ids = provider.discoverModules().stream()
+        List<String> ids = provider.discoverModules().passed().stream()
                 .map(module -> module.id())
                 .collect(Collectors.toList());
 
@@ -121,7 +124,7 @@ class JarModuleProviderTest {
                     new ModuleRuntimeLibraryLoader(libraryLoader)
             );
 
-            List<ModuleCandidate> modules = provider.discoverModules();
+            List<ModuleCandidate> modules = provider.discoverModules().passed();
 
             assertEquals(1, modules.size());
             assertEquals("jar-library-module", modules.get(0).id());
@@ -148,12 +151,20 @@ class JarModuleProviderTest {
                     new ModuleRuntimeLibraryLoader(libraryLoader)
             );
 
-            List<String> ids = provider.discoverModules().stream()
+            ModuleRegistrationStageResult<ModuleCandidate> result = provider.discoverModules();
+            List<String> ids = result.passed().stream()
                     .map(module -> module.id())
                     .collect(Collectors.toList());
 
             assertEquals(1, ids.size());
             assertTrue(ids.contains("second-jar-module"));
+            assertEquals(1, result.issues().size());
+            RuntimeLibraryLoadFailedIssue issue = (RuntimeLibraryLoadFailedIssue) result.issues().all().get(0);
+            assertEquals(ModuleRegistrationIssueType.RUNTIME_LIBRARY_LOAD_FAILED, issue.type());
+            assertEquals("jar-library-module", issue.moduleId());
+            assertEquals("Jar Library Module", issue.moduleName());
+            assertEquals(JarLibraryModule.class.getName(), issue.moduleClassName());
+            assertEquals("com.example:jar-lib:1.0.0", issue.failedLibraries().get(0));
         } finally {
             BlueMatrixLibraryLoader.downloaderForTesting(null);
         }
@@ -163,7 +174,7 @@ class JarModuleProviderTest {
     void discoverCreatesJarModuleCandidate() throws Exception {
         writeJar(new File(tempDir, "module.jar"), JarModule.class);
         JarModuleProvider provider = new JarModuleProvider(tempDir);
-        ModuleCandidate module = provider.discoverModules().get(0);
+        ModuleCandidate module = provider.discoverModules().passed().get(0);
 
         assertEquals(JarModule.class, module.getModuleClass());
         assertEquals("jar-module", module.id());
@@ -174,7 +185,7 @@ class JarModuleProviderTest {
         File missingDirectory = new File(tempDir, "missing");
         JarModuleProvider provider = new JarModuleProvider(missingDirectory);
 
-        assertTrue(provider.discoverModules().isEmpty());
+        assertTrue(provider.discoverModules().passed().isEmpty());
         assertTrue(missingDirectory.isDirectory());
     }
 
