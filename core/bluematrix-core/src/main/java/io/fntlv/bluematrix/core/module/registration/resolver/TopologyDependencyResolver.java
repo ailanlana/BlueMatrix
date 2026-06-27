@@ -17,12 +17,7 @@ public class TopologyDependencyResolver implements DependencyResolver {
     private static final BlueLogger LOGGER = BlueLoggerFactory.getLogger(TopologyDependencyResolver.class);
 
     @Override
-    public List<ModuleCandidate> resolve(List<ModuleCandidate> modules) {
-        return resolveWithResult(modules).passed();
-    }
-
-    @Override
-    public ModuleRegistrationStageResult<ModuleCandidate> resolveWithResult(List<ModuleCandidate> modules) {
+    public ModuleRegistrationStageResult<ModuleCandidate> resolve(List<ModuleCandidate> modules) {
         List<ModuleRegistrationIssue> issues = new ArrayList<>();
         List<ModuleCandidate> dependencyReadyModules = removeMissingDependencies(modules, issues);
         DependencyGraph graph = DependencyGraph.build(dependencyReadyModules);

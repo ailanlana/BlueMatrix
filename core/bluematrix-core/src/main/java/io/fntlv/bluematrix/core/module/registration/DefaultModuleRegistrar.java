@@ -141,7 +141,7 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
 
     private ModuleRegistrationStageResult<ModuleCandidate> resolveDependencies(List<ModuleCandidate> modules) {
         try {
-            return dependencyResolver.resolveWithResult(modules);
+            return dependencyResolver.resolve(modules);
         } catch (RuntimeException e) {
             throw new ModuleRegistrationException("Failed to resolve module dependencies", e);
         }

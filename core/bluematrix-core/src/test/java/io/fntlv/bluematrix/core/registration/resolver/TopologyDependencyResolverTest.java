@@ -27,7 +27,7 @@ class TopologyDependencyResolverTest {
         List<ModuleCandidate> ordered = resolver.resolve(Arrays.asList(
                 provided(HighDependsOnLow.class),
                 provided(LowDependency.class)
-        ));
+        )).passed();
 
         assertEquals(Arrays.asList("low-dependency", "high-dependent"), ids(ordered));
     }
@@ -38,7 +38,7 @@ class TopologyDependencyResolverTest {
                 provided(NormalBeta.class),
                 provided(HighestAlpha.class),
                 provided(LowGamma.class)
-        ));
+        )).passed();
 
         assertEquals(Arrays.asList("alpha", "beta", "gamma"), ids(ordered));
     }
@@ -48,7 +48,7 @@ class TopologyDependencyResolverTest {
         List<ModuleCandidate> ordered = resolver.resolve(Arrays.asList(
                 provided(NormalBeta.class),
                 provided(NormalAlpha.class)
-        ));
+        )).passed();
 
         assertEquals(Arrays.asList("alpha-normal", "beta"), ids(ordered));
     }
@@ -58,7 +58,7 @@ class TopologyDependencyResolverTest {
         List<ModuleCandidate> ordered = resolver.resolve(Arrays.asList(
                 provided(SoftDependsOnBeta.class),
                 provided(NormalBeta.class)
-        ));
+        )).passed();
 
         assertEquals(Arrays.asList("beta", "soft-dependent"), ids(ordered));
     }
@@ -68,7 +68,7 @@ class TopologyDependencyResolverTest {
         List<ModuleCandidate> ordered = resolver.resolve(Arrays.asList(
                 provided(SoftDependsOnMissing.class),
                 provided(NormalBeta.class)
-        ));
+        )).passed();
 
         assertEquals(Arrays.asList("missing-soft-dependent", "beta"), ids(ordered));
     }
@@ -78,14 +78,14 @@ class TopologyDependencyResolverTest {
         List<ModuleCandidate> ordered = resolver.resolve(Arrays.asList(
                 provided(CircularA.class),
                 provided(CircularB.class)
-        ));
+        )).passed();
 
         assertTrue(ordered.isEmpty());
     }
 
     @Test
     void circularDependenciesAreReturnedAsIssues() {
-        ModuleRegistrationStageResult<ModuleCandidate> result = resolver.resolveWithResult(Arrays.asList(
+        ModuleRegistrationStageResult<ModuleCandidate> result = resolver.resolve(Arrays.asList(
                 provided(CircularA.class),
                 provided(CircularB.class)
         ));
@@ -105,14 +105,14 @@ class TopologyDependencyResolverTest {
         List<ModuleCandidate> ordered = resolver.resolve(Arrays.asList(
                 provided(DependsOnMissing.class),
                 provided(NormalBeta.class)
-        ));
+        )).passed();
 
         assertEquals(Arrays.asList("beta"), ids(ordered));
     }
 
     @Test
     void missingRequiredDependencyIsReturnedAsIssue() {
-        ModuleRegistrationStageResult<ModuleCandidate> result = resolver.resolveWithResult(Arrays.asList(
+        ModuleRegistrationStageResult<ModuleCandidate> result = resolver.resolve(Arrays.asList(
                 provided(DependsOnMissing.class),
                 provided(NormalBeta.class)
         ));

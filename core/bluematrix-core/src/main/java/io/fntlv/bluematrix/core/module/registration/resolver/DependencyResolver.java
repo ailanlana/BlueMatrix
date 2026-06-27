@@ -11,11 +11,7 @@ public interface DependencyResolver {
      * Resolves the load order of modules.
      *
      * @param modules modules discovered from module providers
-     * @return modules that can be registered, sorted by dependencies and load order
+     * @return modules that can be registered, sorted by dependencies and load order, plus module-specific issues
      */
-    List<ModuleCandidate> resolve(List<ModuleCandidate> modules);
-
-    default ModuleRegistrationStageResult<ModuleCandidate> resolveWithResult(List<ModuleCandidate> modules) {
-        return ModuleRegistrationStageResult.of(resolve(modules));
-    }
+    ModuleRegistrationStageResult<ModuleCandidate> resolve(List<ModuleCandidate> modules);
 }
