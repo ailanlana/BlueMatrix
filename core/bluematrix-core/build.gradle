@@ -7,9 +7,11 @@ dependencies {
     api project(":core:bluematrix-loader")
     api project(":core:bluematrix-logging")
     compileOnlyApi 'org.reflections:reflections:0.10.2'
+    compileOnly 'org.javassist:javassist:3.28.0-GA'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testImplementation 'org.reflections:reflections:0.10.2'
+    testImplementation 'org.javassist:javassist:3.28.0-GA'
     testRuntimeOnly 'org.slf4j:slf4j-api:1.7.36'
     testRuntimeOnly 'ch.qos.logback:logback-classic:1.2.13'
 }

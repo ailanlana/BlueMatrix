@@ -1,9 +1,13 @@
 package io.fntlv.bluematrix.core.module.registration.provider;
 
+import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryException;
+import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryLoader;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryException;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.logging.BlueLogger;
+import io.fntlv.bluematrix.logging.BlueLoggerFactory;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 
@@ -12,10 +16,18 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class PackageModuleProvider implements ModuleProvider {
+    private static final BlueLogger LOGGER = BlueLoggerFactory.getLogger(PackageModuleProvider.class);
+
     private final String packagePath;
+    private final ModuleRuntimeLibraryLoader runtimeLibraryLoader;
 
     public PackageModuleProvider(String packagePath){
+        this(packagePath, null);
+    }
+
+    public PackageModuleProvider(String packagePath, ModuleRuntimeLibraryLoader runtimeLibraryLoader) {
         this.packagePath = packagePath;
+        this.runtimeLibraryLoader = runtimeLibraryLoader;
     }
 
     @Override
@@ -32,10 +44,28 @@ public class PackageModuleProvider implements ModuleProvider {
 
         for (Class<? extends Module> clazz : classes) {
             ModuleInfo info = clazz.getAnnotation(ModuleInfo.class);
-            ModuleCandidate candidate = new ModuleCandidate(clazz, info);
-            discoveredModules.add(candidate);
+            if (loadRuntimeLibraries(info)) {
+                ModuleCandidate candidate = new ModuleCandidate(clazz, info);
+                discoveredModules.add(candidate);
+            }
         }
         return new ArrayList<>(discoveredModules);
+    }
+
+    private boolean loadRuntimeLibraries(ModuleInfo info) {
+        if (runtimeLibraryLoader == null) {
+            return true;
+        }
+        try {
+            runtimeLibraryLoader.load(info);
+            return true;
+        } catch (ModuleRuntimeLibraryException e) {
+            LOGGER.warn("Skipping module: {} ({}) - {}",
+                    info.name(),
+                    info.id(),
+                    e.getMessage());
+            return false;
+        }
     }
 
     private Reflections createReflections(String packagePath) {

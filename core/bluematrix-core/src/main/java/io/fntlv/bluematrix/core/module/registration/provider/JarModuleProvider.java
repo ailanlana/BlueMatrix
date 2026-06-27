@@ -1,5 +1,7 @@
 package io.fntlv.bluematrix.core.module.registration.provider;
 
+import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryException;
+import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryLoader;
 import io.fntlv.bluematrix.logging.BlueLogger;
 import io.fntlv.bluematrix.logging.BlueLoggerFactory;
 import io.fntlv.bluematrix.core.module.Module;
@@ -10,6 +12,7 @@ import io.fntlv.bluematrix.loader.BlueClassLoaderSupport;
 import io.fntlv.bluematrix.loader.BlueMatrixLoaderException;
 
 import java.io.File;
+import java.io.InputStream;
 import java.net.URL;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -27,12 +30,18 @@ public class JarModuleProvider implements ModuleProvider {
     private final File jarDirectory;
     private final ClassLoader classLoader;
     private final Set<File> loadedJarFiles = new HashSet<>();
+    private final ModuleRuntimeLibraryLoader runtimeLibraryLoader;
+    private final JarModuleMetadataReader metadataReader = new JarModuleMetadataReader();
 
     public JarModuleProvider(File jarDirectory) {
         this(jarDirectory, BlueClassLoaderSupport.ensureUrlClassLoader(JarModuleProvider.class.getClassLoader()));
     }
 
     public JarModuleProvider(File jarDirectory, ClassLoader classLoader) {
+        this(jarDirectory, classLoader, null);
+    }
+
+    public JarModuleProvider(File jarDirectory, ClassLoader classLoader, ModuleRuntimeLibraryLoader runtimeLibraryLoader) {
         if (jarDirectory == null) {
             throw new IllegalArgumentException("jarDirectory cannot be null");
         }
@@ -41,6 +50,7 @@ public class JarModuleProvider implements ModuleProvider {
         }
         this.jarDirectory = jarDirectory;
         this.classLoader = classLoader;
+        this.runtimeLibraryLoader = runtimeLibraryLoader;
     }
 
     @Override
@@ -86,7 +96,6 @@ public class JarModuleProvider implements ModuleProvider {
     private List<ModuleCandidate> discoverModulesInJar(File jarFile) {
         List<ModuleCandidate> discoveredModules = new ArrayList<>();
         try {
-            addJarToClasspath(jarFile);
             try (JarFile jar = new JarFile(jarFile)) {
                 List<JarEntry> classEntries = new ArrayList<>();
                 jar.stream()
@@ -96,13 +105,29 @@ public class JarModuleProvider implements ModuleProvider {
                 classEntries.sort(Comparator.comparing(JarEntry::getName));
 
                 for (JarEntry entry : classEntries) {
-                    discoverModuleClass(jarFile, classLoader, entry).ifPresent(discoveredModules::add);
+                    readModuleMetadata(jarFile, jar, entry)
+                            .flatMap(metadata -> discoverModuleClass(jarFile, metadata))
+                            .ifPresent(discoveredModules::add);
                 }
             }
         } catch (Exception e) {
             throw new ModuleDiscoveryException("Failed to discover modules from jar: " + jarFile.getAbsolutePath(), e);
         }
         return discoveredModules;
+    }
+
+    private java.util.Optional<JarModuleMetadata> readModuleMetadata(File jarFile, JarFile jar, JarEntry entry) {
+        try (InputStream input = jar.getInputStream(entry)) {
+            return metadataReader.read(input);
+        } catch (Throwable e) {
+            LOGGER.warn(
+                    "Failed to read class metadata in jar: {} -> {} - {}",
+                    jarFile.getName(),
+                    entry.getName(),
+                    describe(e)
+            );
+            return java.util.Optional.empty();
+        }
     }
 
     private void addJarToClasspath(File jarFile) {
@@ -120,9 +145,13 @@ public class JarModuleProvider implements ModuleProvider {
         }
     }
 
-    private java.util.Optional<ModuleCandidate> discoverModuleClass(File jarFile, ClassLoader classLoader, JarEntry entry) {
-        String className = toClassName(entry.getName());
+    private java.util.Optional<ModuleCandidate> discoverModuleClass(File jarFile, JarModuleMetadata metadata) {
+        String className = metadata.className();
         try {
+            if (!loadRuntimeLibraries(jarFile, metadata)) {
+                return java.util.Optional.empty();
+            }
+            addJarToClasspath(jarFile);
             Class<?> clazz = classLoader.loadClass(className);
             if (!isModuleClass(clazz)) {
                 return java.util.Optional.empty();
@@ -134,10 +163,6 @@ public class JarModuleProvider implements ModuleProvider {
             ModuleCandidate candidate = new ModuleCandidate(moduleClass, info);
             return java.util.Optional.of(candidate);
         } catch (Throwable e) {
-            ModuleDiscoveryException exception = new ModuleDiscoveryException(
-                    "Failed to inspect class in jar: " + jarFile.getName() + " -> " + className,
-                    e
-            );
             LOGGER.warn(
                     "Failed to inspect class in jar: {} -> {} - {}",
                     jarFile.getName(),
@@ -145,6 +170,25 @@ public class JarModuleProvider implements ModuleProvider {
                     describe(e)
             );
             return java.util.Optional.empty();
+        }
+    }
+
+    private boolean loadRuntimeLibraries(File jarFile, JarModuleMetadata metadata) {
+        if (runtimeLibraryLoader == null) {
+            return true;
+        }
+        try {
+            runtimeLibraryLoader.load(metadata.id(), metadata.repositories(), metadata.libraries());
+            return true;
+        } catch (ModuleRuntimeLibraryException e) {
+            LOGGER.warn(
+                    "Skipping module in jar: {} -> {} ({}) - {}",
+                    jarFile.getName(),
+                    metadata.className(),
+                    metadata.id(),
+                    e.getMessage()
+            );
+            return false;
         }
     }
 
@@ -167,9 +211,4 @@ public class JarModuleProvider implements ModuleProvider {
                 && !Modifier.isAbstract(modifiers);
     }
 
-    private String toClassName(String entryName) {
-        return entryName
-                .substring(0, entryName.length() - ".class".length())
-                .replace('/', '.');
-    }
 }

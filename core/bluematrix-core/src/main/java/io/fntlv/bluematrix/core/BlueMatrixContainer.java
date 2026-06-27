@@ -1,6 +1,7 @@
 package io.fntlv.bluematrix.core;
 
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
+import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryLoader;
 import io.fntlv.bluematrix.core.event.DefaultModuleEventBus;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionLoader;
@@ -11,7 +12,6 @@ import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.registration.DefaultModuleRegistrar;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegistrar;
-import io.fntlv.bluematrix.core.library.ModuleLibraryLoadListener;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleEventBusParameterResolver;
@@ -61,7 +61,6 @@ public final class BlueMatrixContainer {
         );
         this.moduleOrchestrator = new DefaultModuleOrchestrator(moduleStore, moduleRegistrar, eventBus);
         registerListeners(builder.eventListeners);
-        registerDefaultListeners(builder.libraryLoader);
         this.moduleOrchestrator.initialize();
     }
 
@@ -102,10 +101,6 @@ public final class BlueMatrixContainer {
         }
     }
 
-    private void registerDefaultListeners(BlueMatrixLibraryLoader libraryLoader) {
-        eventBus.registerListener(new ModuleLibraryLoadListener(libraryLoader));
-    }
-
     public void loadModules() {
         moduleOrchestrator.loadModules();
     }
@@ -126,19 +121,21 @@ public final class BlueMatrixContainer {
         private final List<Object> eventListeners = new ArrayList<>();
         private final List<ModuleParameterResolver> parameterResolvers = new ArrayList<>();
         private final BlueMatrixLibraryLoader libraryLoader;
+        private final ModuleRuntimeLibraryLoader moduleRuntimeLibraryLoader;
         private boolean built;
 
         private Builder(File dataFolder, ClassLoader classLoader) {
             this.dataFolder = dataFolder;
             this.classLoader = BlueClassLoaderSupport.ensureUrlClassLoader(classLoader);
             this.libraryLoader = new BlueMatrixLibraryLoader(dataFolder, this.classLoader);
+            this.moduleRuntimeLibraryLoader = new ModuleRuntimeLibraryLoader(libraryLoader);
         }
 
         public Builder packageScan(String packagePath) {
             if (packagePath == null || packagePath.trim().isEmpty()) {
                 throw new IllegalArgumentException("packagePath cannot be blank");
             }
-            moduleProviders.add(new PackageModuleProvider(packagePath));
+            moduleProviders.add(new PackageModuleProvider(packagePath, moduleRuntimeLibraryLoader));
             return this;
         }
 
@@ -146,7 +143,7 @@ public final class BlueMatrixContainer {
             if (jarDirectory == null) {
                 throw new IllegalArgumentException("jarDirectory cannot be null");
             }
-            moduleProviders.add(new JarModuleProvider(jarDirectory, classLoader));
+            moduleProviders.add(new JarModuleProvider(jarDirectory, classLoader, moduleRuntimeLibraryLoader));
             return this;
         }
 

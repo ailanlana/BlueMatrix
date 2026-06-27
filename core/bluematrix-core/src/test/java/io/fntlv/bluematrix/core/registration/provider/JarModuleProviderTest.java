@@ -1,9 +1,14 @@
 package io.fntlv.bluematrix.core.module.registration.provider;
 
+import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
+import io.fntlv.bluematrix.core.library.BlueMatrixLibraryScope;
+import io.fntlv.bluematrix.core.library.ModuleRuntimeLibraryLoader;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryException;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.loader.BlueClassLoaderSupport;
+import io.fntlv.bluematrix.loader.library.BlueLibrary;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -98,6 +103,57 @@ class JarModuleProviderTest {
         assertEquals(2, ids.size());
         assertTrue(ids.contains("jar-module"));
         assertTrue(ids.contains("second-jar-module"));
+    }
+
+    @Test
+    void loadsRuntimeLibrariesBeforeReturningCandidate() throws Exception {
+        RecordingDownloader downloader = new RecordingDownloader();
+        BlueMatrixLibraryLoader.downloaderForTesting(downloader);
+        try {
+            writeJar(new File(tempDir, "module.jar"), JarLibraryModule.class);
+            BlueMatrixLibraryLoader libraryLoader = new BlueMatrixLibraryLoader(tempDir, getClass().getClassLoader());
+            JarModuleProvider provider = new JarModuleProvider(
+                    tempDir,
+                    BlueClassLoaderSupport.ensureUrlClassLoader(getClass().getClassLoader()),
+                    new ModuleRuntimeLibraryLoader(libraryLoader)
+            );
+
+            List<ModuleCandidate> modules = provider.discoverModules();
+
+            assertEquals(1, modules.size());
+            assertEquals("jar-library-module", modules.get(0).getModuleInfo().id());
+            assertEquals(1, downloader.calls);
+            assertEquals(BlueMatrixLibraryScope.MODULE, downloader.scope);
+            assertEquals("jar-library-module", downloader.qualifier);
+            assertEquals("com.example:jar-lib:1.0.0", downloader.library.toString());
+        } finally {
+            BlueMatrixLibraryLoader.downloaderForTesting(null);
+        }
+    }
+
+    @Test
+    void skipsJarModuleWhenRuntimeLibraryLoadFails() throws Exception {
+        BlueMatrixLibraryLoader.downloaderForTesting((bootstrap, dataFolder, classLoader, scope, qualifier, library) -> {
+            throw new IllegalStateException("download failed");
+        });
+        try {
+            writeJar(new File(tempDir, "multi.jar"), JarLibraryModule.class, SecondJarModule.class);
+            BlueMatrixLibraryLoader libraryLoader = new BlueMatrixLibraryLoader(tempDir, getClass().getClassLoader());
+            JarModuleProvider provider = new JarModuleProvider(
+                    tempDir,
+                    BlueClassLoaderSupport.ensureUrlClassLoader(getClass().getClassLoader()),
+                    new ModuleRuntimeLibraryLoader(libraryLoader)
+            );
+
+            List<String> ids = provider.discoverModules().stream()
+                    .map(module -> module.getModuleInfo().id())
+                    .collect(Collectors.toList());
+
+            assertEquals(1, ids.size());
+            assertTrue(ids.contains("second-jar-module"));
+        } finally {
+            BlueMatrixLibraryLoader.downloaderForTesting(null);
+        }
     }
 
     @Test
@@ -199,6 +255,25 @@ class JarModuleProviderTest {
     }
 
     @ModuleInfo(
+            id = "jar-library-module",
+            name = "Jar Library Module",
+            libraries = "com.example:jar-lib:1.0.0"
+    )
+    public static class JarLibraryModule implements Module {
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(
             id = "jar-module-with-scan-package",
             name = "Jar Module With Scan Package",
             scanPackages = "io.fntlv.bluematrix.core.module.registration.provider"
@@ -232,6 +307,28 @@ class JarModuleProviderTest {
 
         @Override
         public void onDisable() {
+        }
+    }
+
+    private static final class RecordingDownloader implements BlueMatrixLibraryLoader.Downloader {
+        private int calls;
+        private BlueMatrixLibraryScope scope;
+        private String qualifier;
+        private BlueLibrary library;
+
+        @Override
+        public void download(
+                BlueMatrixLibraryLoader bootstrap,
+                File dataFolder,
+                ClassLoader classLoader,
+                BlueMatrixLibraryScope scope,
+                String qualifier,
+                BlueLibrary library
+        ) {
+            calls++;
+            this.scope = scope;
+            this.qualifier = qualifier;
+            this.library = library;
         }
     }
 }
