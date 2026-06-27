@@ -1,8 +1,6 @@
 package io.fntlv.bluematrix.config.extension;
 
-import io.fntlv.bluematrix.config.core.file.ConfigFile;
 import io.fntlv.bluematrix.config.core.file.yaml.YamlConfigFileFormat;
-import io.fntlv.bluematrix.config.extension.context.ModuleConfigState;
 import io.fntlv.bluematrix.config.extension.register.ConfigRegisterProcessor;
 import io.fntlv.bluematrix.core.module.ModuleConditionOutcome;
 import io.fntlv.bluematrix.core.module.ModuleContext;
@@ -23,7 +21,7 @@ public class ConfigModuleListener {
     private static final BlueLogger LOGGER = BlueLoggerFactory.getLogger(ConfigModuleListener.class);
 
     private final ModuleConfigRegistry configRegistry;
-    private final ConfigRegisterProcessor configRegisterProcessor;
+    private final ModuleConfigLifecycle configLifecycle;
     private final Set<DisabledModule> disabledModules = new HashSet<>();
 
     public ConfigModuleListener(File dataFolder) {
@@ -36,7 +34,7 @@ public class ConfigModuleListener {
 
     public ConfigModuleListener(ModuleConfigRegistry configRegistry, ConfigRegisterProcessor configRegisterProcessor) {
         this.configRegistry = configRegistry;
-        this.configRegisterProcessor = configRegisterProcessor;
+        this.configLifecycle = new ModuleConfigLifecycle(configRegistry, configRegisterProcessor);
     }
 
     @ModuleEventListener
@@ -49,37 +47,12 @@ public class ConfigModuleListener {
         ModuleContext context = event.getContext();
         String moduleId = context.getInfo().id();
         try {
-            ModuleConfigState configState = new ModuleConfigState(
-                    context.getInstance(),
-                    moduleId,
-                    fileName -> configRegistry.openFile(moduleId, fileName)
-            );
-            configRegistry.bindContext(context, configState);
-            ConfigFile file = configState.file();
-
-            String MODULE_ENABLE_PATH = "general.enable";
-            boolean finalModuleEnable = file.getOrSetDefault(
-                    MODULE_ENABLE_PATH,
-                    context.getInfo().enableByDefault(),
-                    "Whether to enable this module.\nSet to true to enable the module; false to skip enabling."
-            );
-            String DEBUG_ENABLE_PATH = "general.debug.enable";
-            boolean debugEnabled = file.getOrSetDefault(
-                    DEBUG_ENABLE_PATH,
-                    false,
-                    "Whether to enable debug logs for this module."
-            );
-            BlueLoggerFactory.setDebugEnabled(debugEnabled);
-
-            if (!finalModuleEnable) {
+            ModuleConfigLoadResult result = configLifecycle.load(context);
+            if (!result.moduleEnabled()) {
                 disabledModules.add(DisabledModule.of(moduleId));
             } else {
                 disabledModules.remove(DisabledModule.of(moduleId));
             }
-
-            configRegisterProcessor.process(context, configState);
-
-            configState.saveFilesIfChanged();
         } catch (RuntimeException e) {
             disabledModules.remove(DisabledModule.of(moduleId));
             event.error("config", "Module configuration failed", e);
@@ -122,9 +95,7 @@ public class ConfigModuleListener {
     private void saveConfig(ModuleContext context) {
         String moduleId = context.getInfo().id();
         try {
-            ModuleConfigState configState = configRegistry.getState(context);
-            configRegisterProcessor.save(configState);
-            configState.saveFilesIfChanged();
+            configLifecycle.save(context);
         } catch (RuntimeException e) {
             LOGGER.error(String.format(
                     "Module configuration save failed during disable: [module=%s]",
