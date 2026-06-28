@@ -1,33 +1,26 @@
 package io.fntlv.bluematrix.core;
 
-import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
-import io.fntlv.bluematrix.core.module.registration.library.ModuleRuntimeLibraryLoader;
-import io.fntlv.bluematrix.core.event.DefaultModuleEventBus;
+import io.fntlv.bluematrix.core.bootstrap.BlueMatrixBootstrap;
+import io.fntlv.bluematrix.core.bootstrap.BlueMatrixBootstrapPlan;
+import io.fntlv.bluematrix.core.bootstrap.BlueMatrixBootstrapResult;
+import io.fntlv.bluematrix.core.bootstrap.BlueMatrixContainerRuntime;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
-import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionLoader;
+import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionBootstrap;
+import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
 import io.fntlv.bluematrix.core.module.ModuleRegistry;
-import io.fntlv.bluematrix.core.module.orchestration.DefaultModuleOrchestrator;
-import io.fntlv.bluematrix.core.module.orchestration.ModuleOrchestrator;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
-import io.fntlv.bluematrix.core.module.registration.DefaultModuleRegistrar;
-import io.fntlv.bluematrix.core.module.registration.ModuleRegistrar;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
-import io.fntlv.bluematrix.core.module.instance.parameter.ModuleResolverComposition;
+import io.fntlv.bluematrix.core.module.orchestration.ModuleOrchestrator;
+import io.fntlv.bluematrix.core.module.registration.library.ModuleRuntimeLibraryLoader;
 import io.fntlv.bluematrix.core.module.registration.provider.JarModuleProvider;
-import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
 import io.fntlv.bluematrix.core.module.registration.provider.PackageModuleProvider;
-import io.fntlv.bluematrix.core.module.registration.resolver.TopologyDependencyResolver;
-import io.fntlv.bluematrix.core.module.storage.DefaultModuleRegistry;
-import io.fntlv.bluematrix.core.module.storage.ModuleStore;
 import io.fntlv.bluematrix.loader.BlueClassLoaderSupport;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
 import io.fntlv.bluematrix.loader.library.BlueLibraryFactory;
 import lombok.Getter;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
 
 public final class BlueMatrixContainer {
     @Getter
@@ -40,26 +33,12 @@ public final class BlueMatrixContainer {
     @Getter
     private final ModuleInstanceFactory instanceFactory;
 
-    private BlueMatrixContainer(Builder builder) {
-        ModuleStore moduleStore = new ModuleStore();
-        this.eventBus = new DefaultModuleEventBus();
-        this.registry = new DefaultModuleRegistry(moduleStore, builder.dataFolder);
-        ModuleResolverComposition resolverComposition = ModuleResolverComposition.forContainer(
-                registry,
-                eventBus,
-                builder.parameterResolvers
-        );
-        this.parameterResolvers = resolverComposition.resolvers();
-        this.instanceFactory = resolverComposition.instanceFactory();
-        ModuleRegistrar moduleRegistrar = new DefaultModuleRegistrar(
-                builder.moduleProviders,
-                new TopologyDependencyResolver(),
-                eventBus,
-                instanceFactory
-        );
-        this.moduleOrchestrator = new DefaultModuleOrchestrator(moduleStore, moduleRegistrar, eventBus);
-        registerListeners(builder.eventListeners);
-        this.moduleOrchestrator.initialize();
+    private BlueMatrixContainer(BlueMatrixContainerRuntime runtime) {
+        this.registry = runtime.registry();
+        this.moduleOrchestrator = runtime.moduleOrchestrator();
+        this.eventBus = runtime.eventBus();
+        this.parameterResolvers = runtime.parameterResolvers();
+        this.instanceFactory = runtime.instanceFactory();
     }
 
     public static Builder builder(File dataFolder) {
@@ -87,12 +66,6 @@ public final class BlueMatrixContainer {
         return classLoader;
     }
 
-    private void registerListeners(List<Object> eventListeners) {
-        for (Object eventListener : eventListeners) {
-            eventBus.registerListener(eventListener);
-        }
-    }
-
     public void loadModules() {
         moduleOrchestrator.loadModules();
     }
@@ -105,29 +78,33 @@ public final class BlueMatrixContainer {
         moduleOrchestrator.disableModules();
     }
 
-    public static final class Builder {
-        @Getter
-        private final File dataFolder;
+    public static final class Builder implements BlueMatrixExtensionBootstrap {
         private final ClassLoader classLoader;
-        private final List<ModuleProvider> moduleProviders = new ArrayList<>();
-        private final List<Object> eventListeners = new ArrayList<>();
-        private final List<ModuleParameterResolver> parameterResolvers = new ArrayList<>();
-        private final BlueMatrixLibraryLoader libraryLoader;
+        private final BlueMatrixBootstrapPlan plan;
         private final ModuleRuntimeLibraryLoader moduleRuntimeLibraryLoader;
         private boolean built;
 
         private Builder(File dataFolder, ClassLoader classLoader) {
-            this.dataFolder = dataFolder;
             this.classLoader = BlueClassLoaderSupport.ensureUrlClassLoader(classLoader);
-            this.libraryLoader = new BlueMatrixLibraryLoader(dataFolder, this.classLoader);
+            BlueMatrixLibraryLoader libraryLoader = new BlueMatrixLibraryLoader(dataFolder, this.classLoader);
+            this.plan = new BlueMatrixBootstrapPlan(dataFolder, this.classLoader, libraryLoader);
             this.moduleRuntimeLibraryLoader = new ModuleRuntimeLibraryLoader(libraryLoader);
+        }
+
+        public File getDataFolder() {
+            return dataFolder();
+        }
+
+        @Override
+        public File dataFolder() {
+            return plan.dataFolder();
         }
 
         public Builder packageScan(String packagePath) {
             if (packagePath == null || packagePath.trim().isEmpty()) {
                 throw new IllegalArgumentException("packagePath cannot be blank");
             }
-            moduleProviders.add(new PackageModuleProvider(packagePath, moduleRuntimeLibraryLoader));
+            plan.addModuleProvider(new PackageModuleProvider(packagePath, moduleRuntimeLibraryLoader));
             return this;
         }
 
@@ -135,23 +112,19 @@ public final class BlueMatrixContainer {
             if (jarDirectory == null) {
                 throw new IllegalArgumentException("jarDirectory cannot be null");
             }
-            moduleProviders.add(new JarModuleProvider(jarDirectory, classLoader, moduleRuntimeLibraryLoader));
+            plan.addModuleProvider(new JarModuleProvider(jarDirectory, classLoader, moduleRuntimeLibraryLoader));
             return this;
         }
 
+        @Override
         public Builder eventListener(Object listener) {
-            if (listener == null) {
-                throw new IllegalArgumentException("listener cannot be null");
-            }
-            eventListeners.add(listener);
+            plan.eventListener(listener);
             return this;
         }
 
+        @Override
         public Builder parameterResolver(ModuleParameterResolver resolver) {
-            if (resolver == null) {
-                throw new IllegalArgumentException("resolver cannot be null");
-            }
-            parameterResolvers.add(resolver);
+            plan.parameterResolver(resolver);
             return this;
         }
 
@@ -160,41 +133,46 @@ public final class BlueMatrixContainer {
         }
 
         public Builder appLibrary(BlueLibrary library) {
-            libraryLoader.addAppLibrary(library);
+            plan.libraryLoader().addAppLibrary(library);
             return this;
         }
 
         public Builder appLibrary(String coordinates, String presenceClass) {
-            libraryLoader.addAppLibrary(coordinates, presenceClass);
+            plan.libraryLoader().addAppLibrary(coordinates, presenceClass);
             return this;
         }
 
         public Builder appLibrary(BlueLibrary library, String presenceClass) {
-            libraryLoader.addAppLibrary(library, presenceClass);
+            plan.libraryLoader().addAppLibrary(library, presenceClass);
             return this;
         }
 
+        @Override
         public Builder repository(String repositoryUrl) {
-            libraryLoader.addRepository(repositoryUrl);
+            plan.repository(repositoryUrl);
             return this;
         }
 
+        @Override
         public Builder extensionLibrary(String extensionName, String coordinates) {
             return extensionLibrary(extensionName, BlueLibraryFactory.of(coordinates));
         }
 
+        @Override
         public Builder extensionLibrary(String extensionName, BlueLibrary library) {
-            libraryLoader.addExtensionLibrary(extensionName, library);
+            plan.extensionLibrary(extensionName, library);
             return this;
         }
 
+        @Override
         public Builder extensionLibrary(String extensionName, String coordinates, String presenceClass) {
-            libraryLoader.addExtensionLibrary(extensionName, coordinates, presenceClass);
+            plan.extensionLibrary(extensionName, coordinates, presenceClass);
             return this;
         }
 
+        @Override
         public Builder extensionLibrary(String extensionName, BlueLibrary library, String presenceClass) {
-            libraryLoader.addExtensionLibrary(extensionName, library, presenceClass);
+            plan.extensionLibrary(extensionName, library, presenceClass);
             return this;
         }
 
@@ -203,24 +181,9 @@ public final class BlueMatrixContainer {
                 throw new BlueMatrixContainerException("BlueMatrixContainer.Builder cannot be reused");
             }
             built = true;
-            BlueMatrixExtensionLoader extensionLoader = new BlueMatrixExtensionLoader(classLoader).load();
-            try {
-                this.libraryLoader.loadCoreLibraries();
-            } catch (RuntimeException e) {
-                throw new BlueMatrixContainerException("Failed to load BlueMatrix runtime libraries", e);
-            }
-            extensionLoader.apply(this);
-            try {
-                this.libraryLoader.loadAppLibraries();
-                this.libraryLoader.loadExtensionLibraries();
-            } catch (RuntimeException e) {
-                throw new BlueMatrixContainerException("Failed to load BlueMatrix runtime libraries", e);
-            }
-            if (moduleProviders.isEmpty()) {
-                throw new BlueMatrixContainerException("At least one module provider is required");
-            }
-            BlueMatrixContainer blueMatrixContainer = new BlueMatrixContainer(this);
-            extensionLoader.launch(blueMatrixContainer);
+            BlueMatrixBootstrapResult result = new BlueMatrixBootstrap().build(plan);
+            BlueMatrixContainer blueMatrixContainer = new BlueMatrixContainer(result.runtime());
+            result.launchExtensions(blueMatrixContainer);
             return blueMatrixContainer;
         }
     }

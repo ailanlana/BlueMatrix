@@ -1,14 +1,14 @@
 package io.fntlv.bluematrix.sql.extension;
 
-import io.fntlv.bluematrix.core.BlueMatrixContainer;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtension;
+import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionBootstrap;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionContext;
 
 public final class SqlExtension implements BlueMatrixExtension {
     @Override
-    public void apply(BlueMatrixContainer.Builder builder, BlueMatrixExtensionContext context) {
+    public void apply(BlueMatrixExtensionBootstrap bootstrap, BlueMatrixExtensionContext context) {
         ModuleSqlRegistry sqlRegistry = new ModuleSqlRegistry();
-        builder.repository("https://repo.carm.cc/repository/maven-public/")
+        bootstrap.repository("https://repo.carm.cc/repository/maven-public/")
                 .extensionLibrary(
                         context.getName(),
                         "cc.carm.lib:easysql-api:0.4.7",

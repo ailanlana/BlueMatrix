@@ -1,7 +1,7 @@
 package io.fntlv.bluematrix.persistence.extension;
 
-import io.fntlv.bluematrix.core.BlueMatrixContainer;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtension;
+import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionBootstrap;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionContext;
 import io.fntlv.bluematrix.loader.library.BlueLibraryFactory;
 
@@ -30,9 +30,9 @@ public final class PersistenceExtension implements BlueMatrixExtension {
     };
 
     @Override
-    public void apply(BlueMatrixContainer.Builder builder, BlueMatrixExtensionContext context) {
-        ModulePersistenceRegistry persistenceRegistry = new ModulePersistenceRegistry(builder.getDataFolder());
-        builder.repository("https://maven.petrus.dev/public")
+    public void apply(BlueMatrixExtensionBootstrap bootstrap, BlueMatrixExtensionContext context) {
+        ModulePersistenceRegistry persistenceRegistry = new ModulePersistenceRegistry(bootstrap.dataFolder());
+        bootstrap.repository("https://maven.petrus.dev/public")
                 .repository("https://repo.maven.apache.org/maven2")
                 .extensionLibrary(
                         context.getName(),
@@ -46,9 +46,9 @@ public final class PersistenceExtension implements BlueMatrixExtension {
                                 .relocate(HIKARI_PACKAGE, RELOCATED_HIKARI_PACKAGE)
                 );
         for (String library : EVERY_DATABASE_RUNTIME_LIBRARIES) {
-            builder.extensionLibrary(context.getName(), library);
+            bootstrap.extensionLibrary(context.getName(), library);
         }
-        builder.parameterResolver(new PersistenceStorageResolver(persistenceRegistry))
+        bootstrap.parameterResolver(new PersistenceStorageResolver(persistenceRegistry))
                 .eventListener(new PersistenceModuleListener(persistenceRegistry));
     }
 }

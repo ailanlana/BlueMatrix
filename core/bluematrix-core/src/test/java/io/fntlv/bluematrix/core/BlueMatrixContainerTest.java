@@ -7,6 +7,7 @@ import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleLoadEvent;
 import io.fntlv.bluematrix.core.BlueMatrixContainerException;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionException;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtension;
+import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionBootstrap;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionContext;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionLoader;
 import io.fntlv.bluematrix.core.module.Module;
@@ -102,6 +103,15 @@ class BlueMatrixContainerTest {
         )));
 
         assertEquals(1, CountingListener.receivedEvents);
+    }
+
+    @Test
+    void builderExposesExtensionBootstrapInterface() {
+        BlueMatrixContainer.Builder builder = BlueMatrixContainer.builder(tempDir);
+        BlueMatrixExtensionBootstrap bootstrap = builder;
+
+        assertSame(tempDir, bootstrap.dataFolder());
+        assertSame(builder, bootstrap.eventListener(new CountingListener()));
     }
 
     @Test
@@ -611,21 +621,21 @@ class BlueMatrixContainerTest {
 
     public static final class CountingExtension implements BlueMatrixExtension {
         @Override
-        public void apply(BlueMatrixContainer.Builder builder, BlueMatrixExtensionContext context) {
-            builder.eventListener(new CountingListener());
+        public void apply(BlueMatrixExtensionBootstrap bootstrap, BlueMatrixExtensionContext context) {
+            bootstrap.eventListener(new CountingListener());
         }
     }
 
     public static final class FailingExtension implements BlueMatrixExtension {
         @Override
-        public void apply(BlueMatrixContainer.Builder builder, BlueMatrixExtensionContext context) {
+        public void apply(BlueMatrixExtensionBootstrap bootstrap, BlueMatrixExtensionContext context) {
             throw new IllegalStateException("apply failed");
         }
     }
 
     public static final class LaunchFailingExtension implements BlueMatrixExtension {
         @Override
-        public void apply(BlueMatrixContainer.Builder builder, BlueMatrixExtensionContext context) {
+        public void apply(BlueMatrixExtensionBootstrap bootstrap, BlueMatrixExtensionContext context) {
         }
 
         @Override
@@ -639,7 +649,7 @@ class BlueMatrixContainerTest {
         }
 
         @Override
-        public void apply(BlueMatrixContainer.Builder builder, BlueMatrixExtensionContext context) {
+        public void apply(BlueMatrixExtensionBootstrap bootstrap, BlueMatrixExtensionContext context) {
         }
     }
 
@@ -649,7 +659,7 @@ class BlueMatrixContainerTest {
         }
 
         @Override
-        public void apply(BlueMatrixContainer.Builder builder, BlueMatrixExtensionContext context) {
+        public void apply(BlueMatrixExtensionBootstrap bootstrap, BlueMatrixExtensionContext context) {
         }
     }
 
@@ -663,7 +673,7 @@ class BlueMatrixContainerTest {
         }
 
         @Override
-        public void apply(BlueMatrixContainer.Builder builder, BlueMatrixExtensionContext context) {
+        public void apply(BlueMatrixExtensionBootstrap bootstrap, BlueMatrixExtensionContext context) {
         }
 
         @Override

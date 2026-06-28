@@ -1,8 +1,8 @@
 package io.fntlv.bluematrix.config.extension;
 
 import io.fntlv.bluematrix.config.core.file.yaml.YamlConfigFileFormat;
-import io.fntlv.bluematrix.core.BlueMatrixContainer;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtension;
+import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionBootstrap;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionContext;
 import io.fntlv.bluematrix.loader.library.BlueLibraryFactory;
 
@@ -10,9 +10,9 @@ public final class ConfigExtension implements BlueMatrixExtension {
     private ModuleConfigRegistry configRegistry;
 
     @Override
-    public void apply(BlueMatrixContainer.Builder builder, BlueMatrixExtensionContext context) {
-        this.configRegistry = new ModuleConfigRegistry(builder.getDataFolder(), new YamlConfigFileFormat());
-        builder.repository(
+    public void apply(BlueMatrixExtensionBootstrap bootstrap, BlueMatrixExtensionContext context) {
+        this.configRegistry = new ModuleConfigRegistry(bootstrap.dataFolder(), new YamlConfigFileFormat());
+        bootstrap.repository(
                         "https://jitpack.io"
                 )
                 .extensionLibrary(

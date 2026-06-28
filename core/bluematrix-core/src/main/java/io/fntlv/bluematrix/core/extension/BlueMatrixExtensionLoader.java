@@ -49,10 +49,10 @@ public final class BlueMatrixExtensionLoader {
         return this;
     }
 
-    public void apply(BlueMatrixContainer.Builder builder) {
+    public void apply(BlueMatrixExtensionBootstrap bootstrap) {
         for (LoadedExtension loadedExtension : extensions) {
             try {
-                loadedExtension.extension.apply(builder, loadedExtension.context());
+                loadedExtension.extension.apply(bootstrap, loadedExtension.context());
             } catch (Exception e) {
                 throw new BlueMatrixExtensionException(
                         "Failed to apply BlueMatrix extension: " + loadedExtension.declaration.describe(),
