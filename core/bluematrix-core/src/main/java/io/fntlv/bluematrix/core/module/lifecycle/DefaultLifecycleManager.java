@@ -5,9 +5,6 @@ import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleDisableEvent;
 import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleEnableEvent;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
 import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleLoadEvent;
-import io.fntlv.bluematrix.core.module.lifecycle.exception.ModuleDisableException;
-import io.fntlv.bluematrix.core.module.lifecycle.exception.ModuleEnableException;
-import io.fntlv.bluematrix.core.module.lifecycle.exception.ModuleLoadException;
 import io.fntlv.bluematrix.logging.BlueLogger;
 import io.fntlv.bluematrix.logging.BlueLoggerFactory;
 import io.fntlv.bluematrix.core.module.Module;
@@ -20,10 +17,12 @@ public class DefaultLifecycleManager implements LifecycleManager {
 
     private final ModuleStore moduleStore;
     private final ModuleEventBus eventBus;
+    private final LifecycleOutcomeHandler outcomes;
 
     public DefaultLifecycleManager(ModuleStore moduleStore, ModuleEventBus eventBus) {
         this.moduleStore = moduleStore;
         this.eventBus = eventBus;
+        this.outcomes = new LifecycleOutcomeHandler(eventBus, LOGGER);
     }
 
     @Override
@@ -38,31 +37,11 @@ public class DefaultLifecycleManager implements LifecycleManager {
 
         ModuleLoadEvent.Pre preEvent = new ModuleLoadEvent.Pre(context);
         eventBus.publish(preEvent);
-        if (preEvent.hasError()) {
-            ModuleLoadException exception = new ModuleLoadException(moduleID, preEvent.getErrorCause());
-            context.markError();
-            LOGGER.error(String.format(
-                    "Module load pre failed: [module=%s], [source=%s], [reason=%s]",
-                    moduleID,
-                    preEvent.getErrorSource(),
-                    preEvent.getErrorMessage()
-            ), exception);
-            eventBus.publish(new ModuleLoadEvent.Failed(context, exception));
+        if (outcomes.handleLoadPreError(context, preEvent)) {
             return;
         }
 
-        try {
-            LOGGER.info("Start loading module: [module={}]", moduleID);
-            module.onLoad();
-            context.markLoaded();
-            LOGGER.info("Module loaded success: [module={}]", moduleID);
-            eventBus.publish(new ModuleLoadEvent.Post(context));
-        } catch (Exception e) {
-            ModuleLoadException exception = new ModuleLoadException(moduleID, e);
-            context.markError();
-            LOGGER.error(String.format("Module load failed: [module=%s]", moduleID), exception);
-            eventBus.publish(new ModuleLoadEvent.Failed(context, exception));
-        }
+        outcomes.runLoad(context, module::onLoad);
     }
 
     @Override
@@ -84,65 +63,30 @@ public class DefaultLifecycleManager implements LifecycleManager {
                     .map(ModuleContext::isEnabled)
                     .orElse(false);
             if (!dependencyEnabled) {
-                context.markEnableSkipped(ModuleConditionOutcome.noMatch(
+                outcomes.skipEnable(context, ModuleConditionOutcome.noMatch(
                         "dependency",
                         "Dependency is not enabled: " + dependency
                 ));
-                break;
+                return;
             }
         }
 
         if (context.isEnableSkipped()) {
-            publishEnableSkipped(moduleID, context, context.getEnableConditionOutcome());
+            outcomes.skipEnable(context, context.getEnableConditionOutcome());
             return;
         }
 
         ModuleEnableEvent.Pre preEvent = new ModuleEnableEvent.Pre(context);
         eventBus.publish(preEvent);
-        if (preEvent.hasError()) {
-            ModuleEnableException exception = new ModuleEnableException(moduleID, preEvent.getErrorCause());
-            context.markError();
-            LOGGER.error(String.format(
-                    "Module enable pre failed: [module=%s], [source=%s], [reason=%s]",
-                    moduleID,
-                    preEvent.getErrorSource(),
-                    preEvent.getErrorMessage()
-            ), exception);
-            eventBus.publish(new ModuleEnableEvent.Failed(context, exception));
-            return;
-        }
-        if (preEvent.isCancelled()) {
-            ModuleConditionOutcome outcome = preEvent.getCancelOutcome();
-            context.markEnableSkipped(outcome);
-            publishEnableSkipped(moduleID, context, outcome);
+        if (outcomes.handleEnablePreOutcome(context, preEvent)) {
             return;
         }
 
-        try {
-            LOGGER.info("Start enable module: [module={}]", moduleID);
-            module.onEnable();
-            context.markEnabled();
-            LOGGER.info("Module enable success: [module={}]", moduleID);
-            eventBus.publish(new ModuleEnableEvent.Post(context));
-        } catch (Exception e) {
-            ModuleEnableException exception = new ModuleEnableException(moduleID, e);
-            context.markError();
-            LOGGER.error(String.format("Module enable failed: [module=%s]", moduleID), exception);
-            eventBus.publish(new ModuleEnableEvent.Failed(context, exception));
-        }
-    }
-
-    private void publishEnableSkipped(String moduleID, ModuleContext context, ModuleConditionOutcome outcome) {
-        LOGGER.warn("Module enable skipped: [module={}], [source={}], [reason={}]",
-                moduleID,
-                outcome.getSource(),
-                outcome.getMessage());
-        eventBus.publish(new ModuleEnableEvent.Skipped(context, outcome));
+        outcomes.runEnable(context, module::onEnable);
     }
 
     @Override
     public void disableModule(ModuleContext context) {
-        String moduleID = context.id();
         Module module = context.getInstance();
 
         if (!context.isEnabled()) {
@@ -150,19 +94,7 @@ public class DefaultLifecycleManager implements LifecycleManager {
         }
 
         eventBus.publish(new ModuleDisableEvent.Pre(context));
-
-        try {
-            LOGGER.info("Start disable module: [module={}]", moduleID);
-            module.onDisable();
-            context.markDisabled();
-            LOGGER.info("Module disable success: [module={}]", moduleID);
-            eventBus.publish(new ModuleDisableEvent.Post(context));
-        } catch (Exception e) {
-            ModuleDisableException exception = new ModuleDisableException(moduleID, e);
-            context.markError();
-            LOGGER.error(String.format("Module disable failed: [module=%s]", moduleID), exception);
-            eventBus.publish(new ModuleDisableEvent.Failed(context, exception));
-        }
+        outcomes.runDisable(context, module::onDisable);
     }
 
     @Override
