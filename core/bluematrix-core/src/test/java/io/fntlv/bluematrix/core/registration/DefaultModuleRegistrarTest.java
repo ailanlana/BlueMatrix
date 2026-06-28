@@ -42,7 +42,7 @@ class DefaultModuleRegistrarTest {
 
     @Test
     void registerMergesModuleProviders() {
-        ModuleRegistrar registrar = new DefaultModuleRegistrar(Arrays.asList(
+        ModuleRegistrar registrar = registrar(Arrays.asList(
                 new StaticProvider(FirstModule.class),
                 new StaticProvider(SecondModule.class)
         ));
@@ -95,7 +95,7 @@ class DefaultModuleRegistrarTest {
 
     @Test
     void uniqueModuleIdsRemainAvailable() {
-        ModuleRegistrar registrar = new DefaultModuleRegistrar(Collections.singletonList(
+        ModuleRegistrar registrar = registrar(Collections.singletonList(
                 new StaticProvider(FirstModule.class)
         ));
 
@@ -107,7 +107,7 @@ class DefaultModuleRegistrarTest {
 
     @Test
     void registerReturnsContextsAndIssues() {
-        ModuleRegistrar registrar = new DefaultModuleRegistrar(Arrays.asList(
+        ModuleRegistrar registrar = registrar(Arrays.asList(
                 new StaticProvider(FirstModule.class),
                 new StaticProvider(SecondModule.class)
         ));
@@ -155,7 +155,7 @@ class DefaultModuleRegistrarTest {
 
     @Test
     void discoveryErrorThrowsRegistrationException() {
-        ModuleRegistrar registrar = new DefaultModuleRegistrar(Arrays.asList(
+        ModuleRegistrar registrar = registrar(Arrays.asList(
                 new FailingDiscoveryProvider(),
                 new StaticProvider(FirstModule.class)
         ));
@@ -166,7 +166,7 @@ class DefaultModuleRegistrarTest {
 
     @Test
     void dependencyResolutionIssuesAreReturned() {
-        ModuleRegistrar registrar = new DefaultModuleRegistrar(Collections.singletonList(
+        ModuleRegistrar registrar = registrar(Collections.singletonList(
                 new StaticProvider(DependsOnMissingModule.class, FirstModule.class)
         ));
 
@@ -181,7 +181,7 @@ class DefaultModuleRegistrarTest {
 
     @Test
     void discoveryIssuesAreMergedIntoRegistrationResult() {
-        ModuleRegistrar registrar = new DefaultModuleRegistrar(Collections.singletonList(
+        ModuleRegistrar registrar = registrar(Collections.singletonList(
                 new LibraryIssueProvider()
         ));
 
@@ -199,7 +199,7 @@ class DefaultModuleRegistrarTest {
 
     @Test
     void discoveryRuntimeErrorThrowsRegistrationException() {
-        ModuleRegistrar registrar = new DefaultModuleRegistrar(Collections.singletonList(
+        ModuleRegistrar registrar = registrar(Collections.singletonList(
                 new RuntimeFailingDiscoveryProvider()
         ));
 
@@ -270,6 +270,15 @@ class DefaultModuleRegistrarTest {
         return contexts.stream()
                 .map(context -> context.id())
                 .collect(java.util.stream.Collectors.toList());
+    }
+
+    private static ModuleRegistrar registrar(List<ModuleProvider> providers) {
+        return new DefaultModuleRegistrar(
+                providers,
+                new TopologyDependencyResolver(),
+                new DefaultModuleEventBus(),
+                new StaticProvider()
+        );
     }
 
     private static void assertIssue(ModuleRegistrationIssue issue,

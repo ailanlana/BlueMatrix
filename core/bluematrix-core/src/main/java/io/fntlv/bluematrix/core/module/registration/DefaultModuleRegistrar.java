@@ -2,19 +2,13 @@ package io.fntlv.bluematrix.core.module.registration;
 
 import io.fntlv.bluematrix.logging.BlueLogger;
 import io.fntlv.bluematrix.logging.BlueLoggerFactory;
-import io.fntlv.bluematrix.core.event.DefaultModuleEventBus;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryException;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleRegistrationException;
-import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
-import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
-import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleEventBusParameterResolver;
-import io.fntlv.bluematrix.core.module.instance.parameter.resolver.ModuleInstanceFactoryParameterResolver;
 import io.fntlv.bluematrix.core.module.registration.resolver.DependencyResolver;
-import io.fntlv.bluematrix.core.module.registration.resolver.TopologyDependencyResolver;
 import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssue;
@@ -37,20 +31,6 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
     private final ModuleEventBus eventBus;
     private final ModuleInstanceFactory instanceFactory;
 
-    public DefaultModuleRegistrar(List<ModuleProvider> moduleProviders) {
-        this(moduleProviders, new TopologyDependencyResolver(), new DefaultModuleEventBus());
-    }
-
-    public DefaultModuleRegistrar(List<ModuleProvider> moduleProviders, DependencyResolver dependencyResolver) {
-        this(moduleProviders, dependencyResolver, new DefaultModuleEventBus());
-    }
-
-    public DefaultModuleRegistrar(List<ModuleProvider> moduleProviders,
-                                  DependencyResolver dependencyResolver,
-                                  ModuleEventBus eventBus) {
-        this(moduleProviders, dependencyResolver, eventBus, createDefaultParameterResolvers(eventBus));
-    }
-
     public DefaultModuleRegistrar(List<ModuleProvider> moduleProviders,
                                   DependencyResolver dependencyResolver,
                                   ModuleEventBus eventBus,
@@ -71,28 +51,6 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
         this.dependencyResolver = dependencyResolver;
         this.eventBus = eventBus;
         this.instanceFactory = instanceFactory;
-    }
-
-    public DefaultModuleRegistrar(List<ModuleProvider> moduleProviders,
-                                  DependencyResolver dependencyResolver,
-                                  ModuleEventBus eventBus,
-                                  ModuleParameterResolverRegistry parameterResolvers) {
-        this(moduleProviders, dependencyResolver, eventBus, createInstanceFactory(parameterResolvers));
-    }
-
-    private static ModuleParameterResolverRegistry createDefaultParameterResolvers(ModuleEventBus eventBus) {
-        ModuleParameterResolverRegistry parameterResolvers = ModuleParameterResolverRegistry.createDefault();
-        parameterResolvers.register(new ModuleEventBusParameterResolver(eventBus));
-        return parameterResolvers;
-    }
-
-    private static ModuleInstanceFactory createInstanceFactory(ModuleParameterResolverRegistry parameterResolvers) {
-        if (parameterResolvers == null) {
-            throw new IllegalArgumentException("parameterResolvers cannot be null");
-        }
-        ModuleInstanceFactory instanceFactory = new DefaultModuleInstanceFactory(parameterResolvers);
-        parameterResolvers.register(new ModuleInstanceFactoryParameterResolver(instanceFactory));
-        return instanceFactory;
     }
 
     @Override
