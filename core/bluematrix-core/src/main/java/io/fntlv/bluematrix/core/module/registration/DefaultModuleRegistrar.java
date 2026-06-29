@@ -18,9 +18,6 @@ import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssu
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public class DefaultModuleRegistrar implements ModuleRegistrar {
     private static final BlueLogger LOGGER = BlueLoggerFactory.getLogger(DefaultModuleRegistrar.class);
@@ -30,6 +27,7 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
     private final ModuleEventBus eventBus;
     private final ModuleInstanceFactory instanceFactory;
     private final RegistrationOutcomeClassifier outcomes = new RegistrationOutcomeClassifier(LOGGER);
+    private final ModuleCandidateAdmission admission = new ModuleCandidateAdmission(outcomes);
 
     public DefaultModuleRegistrar(List<ModuleProvider> moduleProviders,
                                   DependencyResolver dependencyResolver,
@@ -59,12 +57,12 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
         LOGGER.infoBanner();
 
         ModuleRegistrationStageResult<ModuleCandidate> discovered = discoverModules();
-        ModuleRegistrationStageResult<ModuleCandidate> available = removeIdConflicts(discovered.passed());
-        ModuleRegistrationStageResult<ModuleCandidate> resolved = resolveDependencies(available.passed());
+        ModuleRegistrationStageResult<ModuleCandidate> admitted = admission.admit(discovered.passed());
+        ModuleRegistrationStageResult<ModuleCandidate> resolved = resolveDependencies(admitted.passed());
         ModuleRegistrationStageResult<ModuleContext> registered = registerResolvedModules(resolved.passed());
         ModuleRegistrationIssues issues = ModuleRegistrationIssues.merge(
                 discovered.issues(),
-                available.issues(),
+                admitted.issues(),
                 resolved.issues(),
                 registered.issues()
         );
@@ -109,19 +107,6 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
         }
     }
 
-    private ModuleRegistrationStageResult<ModuleCandidate> removeIdConflicts(List<ModuleCandidate> modules) {
-        Set<String> conflicts = findConflictIds(modules);
-        RegistrationOutcomeCollector<ModuleCandidate> collector = new RegistrationOutcomeCollector<>();
-        for (ModuleCandidate module : modules) {
-            if (conflicts.contains(module.id())) {
-                collector.issue(outcomes.duplicateModuleId(module));
-            } else {
-                collector.pass(module);
-            }
-        }
-        return collector.toStageResult();
-    }
-
     private ModuleRegistrationStageResult<ModuleContext> registerResolvedModules(List<ModuleCandidate> modules) {
         RegistrationOutcomeCollector<ModuleContext> collector = new RegistrationOutcomeCollector<>();
         for (ModuleCandidate module : modules) {
@@ -142,15 +127,6 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
             }
         }
         return collector.toStageResult();
-    }
-
-    private Set<String> findConflictIds(List<ModuleCandidate> modules) {
-        Map<String, Long> countById = modules.stream()
-                .collect(Collectors.groupingBy(module -> module.id(), Collectors.counting()));
-        return countById.entrySet().stream()
-                .filter(entry -> entry.getValue() > 1)
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
     }
 
 }
