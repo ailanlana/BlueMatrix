@@ -5,9 +5,13 @@ import io.fntlv.bluematrix.core.module.ModuleInfo;
 import io.fntlv.bluematrix.core.module.ModuleRegistry;
 import io.fntlv.bluematrix.core.event.DefaultModuleEventBus;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
+import io.fntlv.bluematrix.core.module.ModuleContext;
+import io.fntlv.bluematrix.core.module.lifecycle.LifecycleManager;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
 import io.fntlv.bluematrix.core.module.registration.DefaultModuleRegistrar;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegistrar;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationResult;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationStageResult;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.OtherInjectionContext;
@@ -19,12 +23,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultModuleOrchestratorTest {
@@ -64,6 +70,78 @@ class DefaultModuleOrchestratorTest {
         assertTrue(runtime.registry.getModule(WorkingModule.class).isPresent());
     }
 
+    @Test
+    void loadModulesUsesRegistryOrder() {
+        ModuleStore moduleStore = new ModuleStore();
+        List<ModuleContext> contexts = contexts(FirstOrderModule.class, SecondOrderModule.class);
+        moduleStore.add(contexts.get(0));
+        moduleStore.add(contexts.get(1));
+        RecordingLifecycle lifecycle = new RecordingLifecycle();
+        ModuleOrchestrator orchestrator = new DefaultModuleOrchestrator(
+                moduleStore,
+                StaticModuleRegistrar.empty(),
+                lifecycle
+        );
+
+        orchestrator.loadModules();
+
+        assertIterableEquals(Arrays.asList("load:first-order", "load:second-order"), lifecycle.calls);
+    }
+
+    @Test
+    void enableModulesUsesRegistryOrder() {
+        ModuleStore moduleStore = new ModuleStore();
+        List<ModuleContext> contexts = contexts(FirstOrderModule.class, SecondOrderModule.class);
+        moduleStore.add(contexts.get(0));
+        moduleStore.add(contexts.get(1));
+        RecordingLifecycle lifecycle = new RecordingLifecycle();
+        ModuleOrchestrator orchestrator = new DefaultModuleOrchestrator(
+                moduleStore,
+                StaticModuleRegistrar.empty(),
+                lifecycle
+        );
+
+        orchestrator.enableModules();
+
+        assertIterableEquals(Arrays.asList("enable:first-order", "enable:second-order"), lifecycle.calls);
+    }
+
+    @Test
+    void disableModulesUsesReverseRegistryOrder() {
+        ModuleStore moduleStore = new ModuleStore();
+        List<ModuleContext> contexts = contexts(FirstOrderModule.class, SecondOrderModule.class);
+        moduleStore.add(contexts.get(0));
+        moduleStore.add(contexts.get(1));
+        RecordingLifecycle lifecycle = new RecordingLifecycle();
+        ModuleOrchestrator orchestrator = new DefaultModuleOrchestrator(
+                moduleStore,
+                StaticModuleRegistrar.empty(),
+                lifecycle
+        );
+
+        orchestrator.disableModules();
+
+        assertIterableEquals(Arrays.asList("disable:second-order", "disable:first-order"), lifecycle.calls);
+    }
+
+    @Test
+    void initializeRegistersOnlyOnce() {
+        ModuleStore moduleStore = new ModuleStore();
+        List<ModuleContext> contexts = contexts(FirstOrderModule.class, SecondOrderModule.class);
+        StaticModuleRegistrar registrar = new StaticModuleRegistrar(contexts);
+        ModuleOrchestrator orchestrator = new DefaultModuleOrchestrator(
+                moduleStore,
+                registrar,
+                new RecordingLifecycle()
+        );
+
+        orchestrator.initialize();
+        orchestrator.initialize();
+
+        assertEquals(1, registrar.registerCount);
+        assertEquals(2, moduleStore.size());
+    }
+
     private ModuleRuntime runtime(List<ModuleProvider> providers) {
         return runtime(providers, new TestInstanceFactory());
     }
@@ -79,21 +157,18 @@ class DefaultModuleOrchestratorTest {
                 instanceFactory
         );
         return new ModuleRuntime(
-                new DefaultModuleOrchestrator(moduleStore, moduleRegistrar, eventBus),
-                moduleRegistry,
-                eventBus
+                new DefaultModuleOrchestrator(moduleStore, moduleRegistrar, new RecordingLifecycle()),
+                moduleRegistry
         );
     }
 
     private static class ModuleRuntime {
         private final ModuleOrchestrator orchestrator;
         private final ModuleRegistry registry;
-        private final ModuleEventBus eventBus;
 
-        private ModuleRuntime(ModuleOrchestrator orchestrator, ModuleRegistry registry, ModuleEventBus eventBus) {
+        private ModuleRuntime(ModuleOrchestrator orchestrator, ModuleRegistry registry) {
             this.orchestrator = orchestrator;
             this.registry = registry;
-            this.eventBus = eventBus;
         }
     }
 
@@ -145,6 +220,63 @@ class DefaultModuleOrchestratorTest {
         return new ModuleCandidate(moduleClass, moduleClass.getAnnotation(ModuleInfo.class));
     }
 
+    private static List<ModuleContext> contexts(Class<? extends Module> first,
+                                                Class<? extends Module> second) {
+        return Arrays.asList(context(first), context(second));
+    }
+
+    private static ModuleContext context(Class<? extends Module> moduleClass) {
+        try {
+            Module module = moduleClass.getDeclaredConstructor().newInstance();
+            return new ModuleContext(module, provided(moduleClass));
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Failed to create test module context", e);
+        }
+    }
+
+    private static class StaticModuleRegistrar implements ModuleRegistrar {
+        private final List<ModuleContext> contexts;
+        private int registerCount;
+
+        private StaticModuleRegistrar(List<ModuleContext> contexts) {
+            this.contexts = contexts;
+        }
+
+        private static StaticModuleRegistrar empty() {
+            return new StaticModuleRegistrar(Collections.emptyList());
+        }
+
+        @Override
+        public ModuleRegistrationResult register() {
+            registerCount++;
+            return ModuleRegistrationResult.success(contexts);
+        }
+    }
+
+    private static class RecordingLifecycle implements LifecycleManager {
+        private final List<String> calls = new ArrayList<>();
+
+        @Override
+        public void loadModule(ModuleContext context) {
+            calls.add("load:" + context.id());
+        }
+
+        @Override
+        public void enableModule(ModuleContext context) {
+            calls.add("enable:" + context.id());
+        }
+
+        @Override
+        public void disableModule(ModuleContext context) {
+            calls.add("disable:" + context.id());
+        }
+
+        @Override
+        public void reloadModule(ModuleContext context) {
+            calls.add("reload:" + context.id());
+        }
+    }
+
     @ModuleInfo(id = "duplicate", name = "First Duplicate")
     private static class FirstDuplicateModule implements Module {
         @Override
@@ -192,6 +324,36 @@ class DefaultModuleOrchestratorTest {
 
     @ModuleInfo(id = "working", name = "Working")
     private static class WorkingModule implements Module {
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "first-order", name = "First Order")
+    public static class FirstOrderModule implements Module {
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "second-order", name = "Second Order")
+    public static class SecondOrderModule implements Module {
         @Override
         public void onLoad() {
         }

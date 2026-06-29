@@ -1,8 +1,6 @@
 package io.fntlv.bluematrix.core.module.orchestration;
 
 import io.fntlv.bluematrix.core.module.ModuleContext;
-import io.fntlv.bluematrix.core.event.ModuleEventBus;
-import io.fntlv.bluematrix.core.module.lifecycle.DefaultLifecycleManager;
 import io.fntlv.bluematrix.core.module.lifecycle.LifecycleManager;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegistrar;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationResult;
@@ -20,10 +18,19 @@ public class DefaultModuleOrchestrator implements ModuleOrchestrator {
 
     public DefaultModuleOrchestrator(ModuleStore moduleStore,
                                      ModuleRegistrar moduleRegistrar,
-                                     ModuleEventBus eventBus) {
+                                     LifecycleManager lifecycle) {
+        if (moduleStore == null) {
+            throw new IllegalArgumentException("moduleStore cannot be null");
+        }
+        if (moduleRegistrar == null) {
+            throw new IllegalArgumentException("moduleRegistrar cannot be null");
+        }
+        if (lifecycle == null) {
+            throw new IllegalArgumentException("lifecycle cannot be null");
+        }
         this.moduleStore = moduleStore;
         this.moduleRegistrar = moduleRegistrar;
-        this.lifecycle = new DefaultLifecycleManager(moduleStore, eventBus);
+        this.lifecycle = lifecycle;
     }
 
     @Override

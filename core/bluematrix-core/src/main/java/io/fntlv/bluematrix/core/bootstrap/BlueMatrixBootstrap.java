@@ -8,6 +8,8 @@ import io.fntlv.bluematrix.core.module.ModuleRegistry;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleResolverComposition;
+import io.fntlv.bluematrix.core.module.lifecycle.DefaultLifecycleManager;
+import io.fntlv.bluematrix.core.module.lifecycle.LifecycleManager;
 import io.fntlv.bluematrix.core.module.orchestration.DefaultModuleOrchestrator;
 import io.fntlv.bluematrix.core.module.orchestration.ModuleOrchestrator;
 import io.fntlv.bluematrix.core.module.registration.DefaultModuleRegistrar;
@@ -65,7 +67,8 @@ public final class BlueMatrixBootstrap {
                 eventBus,
                 instanceFactory
         );
-        ModuleOrchestrator moduleOrchestrator = new DefaultModuleOrchestrator(moduleStore, moduleRegistrar, eventBus);
+        LifecycleManager lifecycle = new DefaultLifecycleManager(moduleStore, eventBus);
+        ModuleOrchestrator moduleOrchestrator = new DefaultModuleOrchestrator(moduleStore, moduleRegistrar, lifecycle);
         registerListeners(eventBus, plan);
         moduleOrchestrator.initialize();
         return new BlueMatrixContainerRuntime(
