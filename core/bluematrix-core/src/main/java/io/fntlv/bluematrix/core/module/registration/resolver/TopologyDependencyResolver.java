@@ -6,8 +6,7 @@ import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationStageResult;
 import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssue;
 import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssues;
-import io.fntlv.bluematrix.core.module.registration.issue.issues.CircularDependencyIssue;
-import io.fntlv.bluematrix.core.module.registration.issue.issues.MissingRequiredDependencyIssue;
+import io.fntlv.bluematrix.core.module.registration.outcome.RegistrationOutcomeClassifier;
 import io.fntlv.bluematrix.core.module.registration.resolver.DependencyGraph.Node;
 
 import java.util.*;
@@ -15,6 +14,7 @@ import java.util.stream.Collectors;
 
 public class TopologyDependencyResolver implements DependencyResolver {
     private static final BlueLogger LOGGER = BlueLoggerFactory.getLogger(TopologyDependencyResolver.class);
+    private final RegistrationOutcomeClassifier outcomes = new RegistrationOutcomeClassifier(LOGGER);
 
     @Override
     public ModuleRegistrationStageResult<ModuleCandidate> resolve(List<ModuleCandidate> modules) {
@@ -25,9 +25,7 @@ public class TopologyDependencyResolver implements DependencyResolver {
 
         for (ModuleCandidate module : sortResult.circularModules) {
             List<String> circularIds = ids(sortResult.circularModules);
-            String reason = "Circular dependency detected with modules: " + String.join(", ", circularIds);
-            logSkip(module, reason);
-            issues.add(new CircularDependencyIssue(module, reason, circularIds));
+            issues.add(outcomes.circularDependency(module, circularIds));
         }
 
         return ModuleRegistrationStageResult.of(sortResult.loadOrder, new ModuleRegistrationIssues(issues));
@@ -55,9 +53,7 @@ public class TopologyDependencyResolver implements DependencyResolver {
         for (ModuleCandidate module : modules) {
             List<String> missingDepends = missingDependsById.get(module.id());
             if (missingDepends != null) {
-                String reason = "Missing required dependencies: " + String.join(", ", missingDepends);
-                logSkip(module, reason);
-                issues.add(new MissingRequiredDependencyIssue(module, reason, missingDepends));
+                issues.add(outcomes.missingRequiredDependency(module, missingDepends));
             }
         }
         return new ArrayList<>(remainingById.values());
@@ -128,15 +124,6 @@ public class TopologyDependencyResolver implements DependencyResolver {
         return modules.stream()
                 .map(module -> module.id())
                 .collect(Collectors.toList());
-    }
-
-    private void logSkip(ModuleCandidate module, String reason) {
-        LOGGER.warn(
-                "Skipping module: {} ({}) - {}",
-                module.name(),
-                module.id(),
-                reason
-        );
     }
 
     private static class SortResult {

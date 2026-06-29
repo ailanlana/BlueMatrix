@@ -11,7 +11,7 @@ import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationStageResult;
 import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssue;
 import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssues;
-import io.fntlv.bluematrix.core.module.registration.issue.issues.RuntimeLibraryLoadFailedIssue;
+import io.fntlv.bluematrix.core.module.registration.outcome.RegistrationOutcomeClassifier;
 import io.fntlv.bluematrix.loader.BlueClassLoaderSupport;
 import io.fntlv.bluematrix.loader.BlueMatrixLoaderException;
 
@@ -30,6 +30,7 @@ import java.util.jar.JarFile;
 
 public class JarModuleProvider implements ModuleProvider {
     private static final BlueLogger LOGGER = BlueLoggerFactory.getLogger(JarModuleProvider.class);
+    private final RegistrationOutcomeClassifier outcomes = new RegistrationOutcomeClassifier(LOGGER);
 
     private final File jarDirectory;
     private final ClassLoader classLoader;
@@ -161,19 +162,12 @@ public class JarModuleProvider implements ModuleProvider {
         try {
             ModuleRuntimeLibraryLoadResult libraryResult = loadRuntimeLibraries(metadata);
             if (libraryResult.failed()) {
-                LOGGER.warn(
-                        "Skipping module in jar: {} -> {} ({}) - failed to load runtime libraries: {}",
+                ModuleRegistrationIssue issue = outcomes.runtimeLibraryFailedInJar(
                         jarFile.getName(),
-                        metadata.className(),
-                        metadata.id(),
-                        libraryResult.failureSummary()
-                );
-                ModuleRegistrationIssue issue = new RuntimeLibraryLoadFailedIssue(
                         metadata.id(),
                         metadata.name(),
                         metadata.className(),
-                        libraryResult,
-                        "Failed to load runtime libraries: " + libraryResult.failureSummary()
+                        libraryResult
                 );
                 return ModuleRegistrationStageResult.of(
                         java.util.Collections.emptyList(),

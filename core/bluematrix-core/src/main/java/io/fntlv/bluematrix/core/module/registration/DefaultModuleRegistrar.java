@@ -8,13 +8,12 @@ import io.fntlv.bluematrix.core.module.registration.exception.ModuleDiscoveryExc
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleRegistrationException;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.registration.outcome.RegistrationOutcomeClassifier;
+import io.fntlv.bluematrix.core.module.registration.outcome.RegistrationOutcomeCollector;
 import io.fntlv.bluematrix.core.module.registration.resolver.DependencyResolver;
 import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
 import io.fntlv.bluematrix.core.module.ModuleContext;
-import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssue;
 import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssues;
-import io.fntlv.bluematrix.core.module.registration.issue.issues.DuplicateModuleIdIssue;
-import io.fntlv.bluematrix.core.module.registration.issue.issues.InstantiationFailedIssue;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +29,7 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
     private final List<ModuleProvider> moduleProviders;
     private final ModuleEventBus eventBus;
     private final ModuleInstanceFactory instanceFactory;
+    private final RegistrationOutcomeClassifier outcomes = new RegistrationOutcomeClassifier(LOGGER);
 
     public DefaultModuleRegistrar(List<ModuleProvider> moduleProviders,
                                   DependencyResolver dependencyResolver,
@@ -69,22 +69,23 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
                 registered.issues()
         );
 
+        ModuleRegistrationResult result = new ModuleRegistrationResult(registered.passed(), issues);
         LOGGER.info("Module register completed. Success: {} | Issues: {} | Duration: {}ms",
                 registered.passed().size(),
                 issues.size(),
                 System.currentTimeMillis() - startTime
         );
-        return new ModuleRegistrationResult(registered.passed(), issues);
+        outcomes.reporter().registrationResult(result);
+        return result;
     }
 
     private ModuleRegistrationStageResult<ModuleCandidate> discoverModules() {
-        List<ModuleCandidate> modules = new ArrayList<>();
-        List<ModuleRegistrationIssue> issues = new ArrayList<>();
+        RegistrationOutcomeCollector<ModuleCandidate> collector = new RegistrationOutcomeCollector<>();
         for (ModuleProvider moduleProvider : moduleProviders) {
             try {
                 ModuleRegistrationStageResult<ModuleCandidate> result = moduleProvider.discoverModules();
-                modules.addAll(result.passed());
-                issues.addAll(result.issues().all());
+                collector.passAll(result.passed());
+                collector.issues(result.issues());
             } catch (ModuleDiscoveryException e) {
                 throw new ModuleRegistrationException(
                         "Failed to discover modules from provider: " + moduleProvider.getClass().getName(),
@@ -97,7 +98,7 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
                 );
             }
         }
-        return ModuleRegistrationStageResult.of(modules, new ModuleRegistrationIssues(issues));
+        return collector.toStageResult();
     }
 
     private ModuleRegistrationStageResult<ModuleCandidate> resolveDependencies(List<ModuleCandidate> modules) {
@@ -110,35 +111,29 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
 
     private ModuleRegistrationStageResult<ModuleCandidate> removeIdConflicts(List<ModuleCandidate> modules) {
         Set<String> conflicts = findConflictIds(modules);
-        List<ModuleCandidate> availableModules = new ArrayList<>();
-        List<ModuleRegistrationIssue> issues = new ArrayList<>();
+        RegistrationOutcomeCollector<ModuleCandidate> collector = new RegistrationOutcomeCollector<>();
         for (ModuleCandidate module : modules) {
             if (conflicts.contains(module.id())) {
-                String reason = "Duplicate module id: " + module.id();
-                logSkip(module, reason);
-                issues.add(new DuplicateModuleIdIssue(module, reason));
+                collector.issue(outcomes.duplicateModuleId(module));
             } else {
-                availableModules.add(module);
+                collector.pass(module);
             }
         }
-        return ModuleRegistrationStageResult.of(availableModules, new ModuleRegistrationIssues(issues));
+        return collector.toStageResult();
     }
 
     private ModuleRegistrationStageResult<ModuleContext> registerResolvedModules(List<ModuleCandidate> modules) {
-        List<ModuleContext> contexts = new ArrayList<>();
-        List<ModuleRegistrationIssue> issues = new ArrayList<>();
+        RegistrationOutcomeCollector<ModuleContext> collector = new RegistrationOutcomeCollector<>();
         for (ModuleCandidate module : modules) {
             try {
                 eventBus.publish(new ModuleRegisterEvent.Pre(module));
                 Module instance = instanceFactory.create(module);
                 ModuleContext context = new ModuleContext(instance, module);
                 eventBus.publish(new ModuleRegisterEvent.Post(context));
-                contexts.add(context);
-                logRegisterSuccess(module);
+                collector.pass(context);
+                outcomes.reporter().registerSuccess(module);
             } catch (ModuleInstantiationException e) {
-                String reason = "Failed to instantiate module: " + e.getMessage();
-                logSkip(module, reason);
-                issues.add(new InstantiationFailedIssue(module, reason, e));
+                collector.issue(outcomes.instantiationFailed(module, e));
             } catch (RuntimeException e) {
                 throw new ModuleRegistrationException(
                         "Failed to register module: " + module.id(),
@@ -146,7 +141,7 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
                 );
             }
         }
-        return ModuleRegistrationStageResult.of(contexts, new ModuleRegistrationIssues(issues));
+        return collector.toStageResult();
     }
 
     private Set<String> findConflictIds(List<ModuleCandidate> modules) {
@@ -158,18 +153,4 @@ public class DefaultModuleRegistrar implements ModuleRegistrar {
                 .collect(Collectors.toSet());
     }
 
-    private void logRegisterSuccess(ModuleCandidate module) {
-        LOGGER.info("Successfully register module: {} ({}) - {}",
-                module.name(), module.id(), module.description()
-        );
-    }
-
-    private void logSkip(ModuleCandidate module, String reason) {
-        LOGGER.warn(
-                "Skipping module: {} ({}) - {}",
-                module.name(),
-                module.id(),
-                reason
-        );
-    }
 }

@@ -10,7 +10,7 @@ import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegistrationStageResult;
 import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssue;
 import io.fntlv.bluematrix.core.module.registration.issue.ModuleRegistrationIssues;
-import io.fntlv.bluematrix.core.module.registration.issue.issues.RuntimeLibraryLoadFailedIssue;
+import io.fntlv.bluematrix.core.module.registration.outcome.RegistrationOutcomeClassifier;
 import io.fntlv.bluematrix.logging.BlueLogger;
 import io.fntlv.bluematrix.logging.BlueLoggerFactory;
 import org.reflections.Reflections;
@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 public class PackageModuleProvider implements ModuleProvider {
     private static final BlueLogger LOGGER = BlueLoggerFactory.getLogger(PackageModuleProvider.class);
+    private final RegistrationOutcomeClassifier outcomes = new RegistrationOutcomeClassifier(LOGGER);
 
     private final String packagePath;
     private final ModuleRuntimeLibraryLoader runtimeLibraryLoader;
@@ -56,16 +57,7 @@ public class PackageModuleProvider implements ModuleProvider {
                 ModuleCandidate candidate = new ModuleCandidate(clazz, descriptor);
                 discoveredModules.add(candidate);
             } else {
-                issues.add(new RuntimeLibraryLoadFailedIssue(
-                        descriptor,
-                        clazz,
-                        libraryResult,
-                        "Failed to load runtime libraries: " + libraryResult.failureSummary()
-                ));
-                LOGGER.warn("Skipping module: {} ({}) - failed to load runtime libraries: {}",
-                        descriptor.name(),
-                        descriptor.id(),
-                        libraryResult.failureSummary());
+                issues.add(outcomes.runtimeLibraryFailed(descriptor, clazz, libraryResult));
             }
         }
         return ModuleRegistrationStageResult.of(discoveredModules, new ModuleRegistrationIssues(issues));

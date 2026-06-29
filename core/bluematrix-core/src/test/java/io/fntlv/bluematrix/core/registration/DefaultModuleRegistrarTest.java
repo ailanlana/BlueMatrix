@@ -25,9 +25,15 @@ import io.fntlv.bluematrix.core.registration.scanned.ScanPackageMarker;
 import io.fntlv.bluematrix.core.registration.scanned.ScanPackageType;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.registration.resolver.TopologyDependencyResolver;
+import io.fntlv.bluematrix.logging.BlueLogLevel;
+import io.fntlv.bluematrix.logging.BlueLoggerFactory;
+import io.fntlv.bluematrix.logging.backend.BlueLogBackend;
+import io.fntlv.bluematrix.logging.backend.BlueLogBackendProvider;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -39,6 +45,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultModuleRegistrarTest {
+    private final BlueLogBackendProvider previousProvider = BlueLoggerFactory.getBackendProvider();
+
+    @AfterEach
+    void resetLoggerFactory() {
+        BlueLoggerFactory.setBackendProvider(previousProvider);
+    }
 
     @Test
     void registerMergesModuleProviders() {
@@ -242,6 +254,33 @@ class DefaultModuleRegistrarTest {
     }
 
     @Test
+    void registerLogsFinalResultAfterSummary() {
+        RecordingBackend backend = new RecordingBackend();
+        BlueLoggerFactory.setBackendProvider(name -> backend);
+        StaticProvider provider = new StaticProvider(FailingInstantiateModule.class, FirstModule.class);
+        ModuleRegistrar registrar = new DefaultModuleRegistrar(
+                Collections.singletonList(provider),
+                new TopologyDependencyResolver(),
+                new DefaultModuleEventBus(),
+                provider
+        );
+
+        registrar.register();
+
+        int summary = backend.indexOf("Module register completed.");
+        int registeredHeader = backend.indexOf("Registered modules:");
+        int registeredModule = backend.indexOf(" - First (first) -");
+        int issueHeader = backend.indexOf("Registration issues:");
+        int issue = backend.indexOf(" - INSTANTIATION_FAILED | Failing Instantiate (failing-instantiate) -");
+
+        assertTrue(summary >= 0);
+        assertTrue(registeredHeader > summary);
+        assertTrue(registeredModule > registeredHeader);
+        assertTrue(issueHeader > registeredModule);
+        assertTrue(issue > issueHeader);
+    }
+
+    @Test
     void moduleContextCreatesReflectionsFromCandidateDescriptor() {
         FirstModule module = new FirstModule();
         ModuleCandidate candidate = new ModuleCandidate(
@@ -410,6 +449,34 @@ class DefaultModuleRegistrarTest {
             postCount++;
             moduleId = event.getContext().id();
             instantiateCountWhenPostPublished = provider.instantiateCount;
+        }
+    }
+
+    private static class RecordingBackend implements BlueLogBackend {
+        private final List<String> messages = new ArrayList<>();
+
+        @Override
+        public boolean isEnabled(BlueLogLevel level) {
+            return true;
+        }
+
+        @Override
+        public void log(BlueLogLevel level, String message) {
+            messages.add(message);
+        }
+
+        @Override
+        public void log(BlueLogLevel level, String message, Throwable throwable) {
+            messages.add(message);
+        }
+
+        private int indexOf(String text) {
+            for (int i = 0; i < messages.size(); i++) {
+                if (messages.get(i).contains(text)) {
+                    return i;
+                }
+            }
+            return -1;
         }
     }
 
