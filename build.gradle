@@ -9,7 +9,8 @@ def publishableProjects = [
         ':core:bluematrix-logging',
         ':extension:bluematrix-config',
         ':extension:bluematrix-persistence',
-        ':extension:bluematrix-sql'
+        ':extension:bluematrix-sql',
+        ':extension:bluematrix-lang'
 ]
 
 subprojects {
