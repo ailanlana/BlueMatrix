@@ -2,10 +2,10 @@ package io.fntlv.bluematrix.core;
 
 import io.fntlv.bluematrix.core.bootstrap.BlueMatrixBootstrap;
 import io.fntlv.bluematrix.core.bootstrap.BlueMatrixBootstrapPlan;
-import io.fntlv.bluematrix.core.bootstrap.BlueMatrixBootstrapResult;
-import io.fntlv.bluematrix.core.bootstrap.BlueMatrixContainerRuntime;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
+import io.fntlv.bluematrix.core.extension.BlueMatrixExtension;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionBootstrap;
+import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionLoader;
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
 import io.fntlv.bluematrix.core.module.ModuleRegistry;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
@@ -21,6 +21,7 @@ import io.fntlv.bluematrix.loader.library.BlueLibraryFactory;
 import lombok.Getter;
 
 import java.io.File;
+import java.util.Optional;
 
 public final class BlueMatrixContainer {
     @Getter
@@ -32,13 +33,54 @@ public final class BlueMatrixContainer {
     private final ModuleParameterResolverRegistry parameterResolvers;
     @Getter
     private final ModuleInstanceFactory instanceFactory;
+    private final BlueMatrixExtensionLoader extensionLoader;
 
-    private BlueMatrixContainer(BlueMatrixContainerRuntime runtime) {
-        this.registry = runtime.registry();
-        this.moduleOrchestrator = runtime.moduleOrchestrator();
-        this.eventBus = runtime.eventBus();
-        this.parameterResolvers = runtime.parameterResolvers();
-        this.instanceFactory = runtime.instanceFactory();
+    private BlueMatrixContainer(ModuleRegistry registry,
+                                ModuleOrchestrator moduleOrchestrator,
+                                ModuleEventBus eventBus,
+                                ModuleParameterResolverRegistry parameterResolvers,
+                                ModuleInstanceFactory instanceFactory,
+                                BlueMatrixExtensionLoader extensionLoader) {
+        this.registry = registry;
+        this.moduleOrchestrator = moduleOrchestrator;
+        this.eventBus = eventBus;
+        this.parameterResolvers = parameterResolvers;
+        this.instanceFactory = instanceFactory;
+        this.extensionLoader = extensionLoader;
+    }
+
+    public static BlueMatrixContainer create(ModuleRegistry registry,
+                                             ModuleOrchestrator moduleOrchestrator,
+                                             ModuleEventBus eventBus,
+                                             ModuleParameterResolverRegistry parameterResolvers,
+                                             ModuleInstanceFactory instanceFactory,
+                                             BlueMatrixExtensionLoader extensionLoader) {
+        if (registry == null) {
+            throw new IllegalArgumentException("registry cannot be null");
+        }
+        if (moduleOrchestrator == null) {
+            throw new IllegalArgumentException("moduleOrchestrator cannot be null");
+        }
+        if (eventBus == null) {
+            throw new IllegalArgumentException("eventBus cannot be null");
+        }
+        if (parameterResolvers == null) {
+            throw new IllegalArgumentException("parameterResolvers cannot be null");
+        }
+        if (instanceFactory == null) {
+            throw new IllegalArgumentException("instanceFactory cannot be null");
+        }
+        if (extensionLoader == null) {
+            throw new IllegalArgumentException("extensionLoader cannot be null");
+        }
+        return new BlueMatrixContainer(
+                registry,
+                moduleOrchestrator,
+                eventBus,
+                parameterResolvers,
+                instanceFactory,
+                extensionLoader
+        );
     }
 
     public static Builder builder(File dataFolder) {
@@ -76,6 +118,10 @@ public final class BlueMatrixContainer {
 
     public void disableModules() {
         moduleOrchestrator.disableModules();
+    }
+
+    public <T extends BlueMatrixExtension> Optional<T> getExtension(Class<T> clazz) {
+        return extensionLoader.getExtension(clazz);
     }
 
     public static final class Builder implements BlueMatrixExtensionBootstrap {
@@ -181,10 +227,7 @@ public final class BlueMatrixContainer {
                 throw new BlueMatrixContainerException("BlueMatrixContainer.Builder cannot be reused");
             }
             built = true;
-            BlueMatrixBootstrapResult result = new BlueMatrixBootstrap().build(plan);
-            BlueMatrixContainer blueMatrixContainer = new BlueMatrixContainer(result.runtime());
-            result.launchExtensions(blueMatrixContainer);
-            return blueMatrixContainer;
+            return new BlueMatrixBootstrap().start(plan);
         }
     }
 }

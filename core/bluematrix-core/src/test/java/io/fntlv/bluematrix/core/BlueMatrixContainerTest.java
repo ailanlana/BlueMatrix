@@ -5,6 +5,8 @@ import io.fntlv.bluematrix.core.library.BlueMatrixLibraryScope;
 import io.fntlv.bluematrix.core.event.ModuleEventListener;
 import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleLoadEvent;
 import io.fntlv.bluematrix.core.BlueMatrixContainerException;
+import io.fntlv.bluematrix.core.bootstrap.BlueMatrixBootstrap;
+import io.fntlv.bluematrix.core.bootstrap.BlueMatrixBootstrapPlan;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionException;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtension;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionBootstrap;
@@ -18,6 +20,7 @@ import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolve
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.core.module.orchestration.DefaultModuleOrchestrator;
 import io.fntlv.bluematrix.core.module.orchestration.ModuleOrchestrator;
+import io.fntlv.bluematrix.core.module.registration.provider.JarModuleProvider;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -340,6 +343,71 @@ class BlueMatrixContainerTest {
             Thread.currentThread().setContextClassLoader(previousClassLoader);
             extensionClassLoader.close();
         }
+    }
+
+    @Test
+    void bootstrapStartReturnsLaunchedContainer() throws Exception {
+        MarkerExtension.constructed = false;
+        MarkerExtension.launched = false;
+        MarkerExtension.container = null;
+        ClassLoader previousClassLoader = Thread.currentThread().getContextClassLoader();
+        URLClassLoader extensionClassLoader = extensionClassLoader("marker", MarkerExtension.class.getName());
+        try {
+            Thread.currentThread().setContextClassLoader(extensionClassLoader);
+            BlueMatrixBootstrapPlan plan = new BlueMatrixBootstrapPlan(
+                    tempDir,
+                    extensionClassLoader,
+                    new BlueMatrixLibraryLoader(tempDir, extensionClassLoader)
+            );
+            plan.addModuleProvider(new JarModuleProvider(tempDir, extensionClassLoader));
+
+            BlueMatrixContainer blueMatrixContainer = new BlueMatrixBootstrap().start(plan);
+
+            assertNotNull(blueMatrixContainer.getEventBus());
+            assertTrue(blueMatrixContainer.getExtension(MarkerExtension.class).isPresent());
+            assertTrue(MarkerExtension.launched);
+            assertEquals(blueMatrixContainer, MarkerExtension.container);
+        } finally {
+            Thread.currentThread().setContextClassLoader(previousClassLoader);
+            extensionClassLoader.close();
+        }
+    }
+
+    @Test
+    void exposesExtensionByClass() throws Exception {
+        ClassLoader previousClassLoader = Thread.currentThread().getContextClassLoader();
+        URLClassLoader extensionClassLoader = extensionClassLoader("marker", MarkerExtension.class.getName());
+        try {
+            Thread.currentThread().setContextClassLoader(extensionClassLoader);
+
+            BlueMatrixContainer blueMatrixContainer = BlueMatrixContainer.builder(tempDir)
+                    .jarDirectory(tempDir)
+                    .build();
+
+            assertTrue(blueMatrixContainer.getExtension(MarkerExtension.class).isPresent());
+            assertTrue(blueMatrixContainer.getExtension(BlueMatrixExtension.class).isPresent());
+        } finally {
+            Thread.currentThread().setContextClassLoader(previousClassLoader);
+            extensionClassLoader.close();
+        }
+    }
+
+    @Test
+    void returnsEmptyWhenExtensionIsMissing() {
+        BlueMatrixContainer blueMatrixContainer = BlueMatrixContainer.builder(tempDir)
+                .jarDirectory(tempDir)
+                .build();
+
+        assertFalse(blueMatrixContainer.getExtension(MarkerExtension.class).isPresent());
+    }
+
+    @Test
+    void rejectsNullExtensionClass() {
+        BlueMatrixContainer blueMatrixContainer = BlueMatrixContainer.builder(tempDir)
+                .jarDirectory(tempDir)
+                .build();
+
+        assertThrows(IllegalArgumentException.class, () -> blueMatrixContainer.getExtension(null));
     }
 
     @Test

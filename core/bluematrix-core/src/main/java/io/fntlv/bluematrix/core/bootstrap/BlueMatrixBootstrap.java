@@ -1,5 +1,6 @@
 package io.fntlv.bluematrix.core.bootstrap;
 
+import io.fntlv.bluematrix.core.BlueMatrixContainer;
 import io.fntlv.bluematrix.core.BlueMatrixContainerException;
 import io.fntlv.bluematrix.core.event.DefaultModuleEventBus;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
@@ -19,7 +20,7 @@ import io.fntlv.bluematrix.core.module.storage.DefaultModuleRegistry;
 import io.fntlv.bluematrix.core.module.storage.ModuleStore;
 
 public final class BlueMatrixBootstrap {
-    public BlueMatrixBootstrapResult build(BlueMatrixBootstrapPlan plan) {
+    public BlueMatrixContainer start(BlueMatrixBootstrapPlan plan) {
         if (plan == null) {
             throw new IllegalArgumentException("plan cannot be null");
         }
@@ -30,7 +31,9 @@ public final class BlueMatrixBootstrap {
         if (plan.moduleProviders().isEmpty()) {
             throw new BlueMatrixContainerException("At least one module provider is required");
         }
-        return new BlueMatrixBootstrapResult(assembleRuntime(plan), extensionLoader);
+        BlueMatrixContainer container = createContainer(plan, extensionLoader);
+        extensionLoader.launch(container);
+        return container;
     }
 
     private void loadCoreLibraries(BlueMatrixBootstrapPlan plan) {
@@ -50,7 +53,7 @@ public final class BlueMatrixBootstrap {
         }
     }
 
-    private BlueMatrixContainerRuntime assembleRuntime(BlueMatrixBootstrapPlan plan) {
+    private BlueMatrixContainer createContainer(BlueMatrixBootstrapPlan plan, BlueMatrixExtensionLoader extensionLoader) {
         ModuleStore moduleStore = new ModuleStore();
         ModuleEventBus eventBus = new DefaultModuleEventBus();
         ModuleRegistry registry = new DefaultModuleRegistry(moduleStore, plan.dataFolder());
@@ -71,12 +74,13 @@ public final class BlueMatrixBootstrap {
         ModuleOrchestrator moduleOrchestrator = new DefaultModuleOrchestrator(moduleStore, moduleRegistrar, lifecycle);
         registerListeners(eventBus, plan);
         moduleOrchestrator.initialize();
-        return new BlueMatrixContainerRuntime(
+        return BlueMatrixContainer.create(
                 registry,
                 moduleOrchestrator,
                 eventBus,
                 parameterResolvers,
-                instanceFactory
+                instanceFactory,
+                extensionLoader
         );
     }
 

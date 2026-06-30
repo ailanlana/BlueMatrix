@@ -1,7 +1,6 @@
 package io.fntlv.bluematrix.core.extension;
 
 import io.fntlv.bluematrix.core.BlueMatrixContainer;
-import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionException;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,6 +17,7 @@ import java.util.Enumeration;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -73,6 +73,18 @@ public final class BlueMatrixExtensionLoader {
                 );
             }
         }
+    }
+
+    public <T extends BlueMatrixExtension> Optional<T> getExtension(Class<T> clazz) {
+        if (clazz == null) {
+            throw new IllegalArgumentException("clazz cannot be null");
+        }
+        for (LoadedExtension loadedExtension : extensions) {
+            if (clazz.isInstance(loadedExtension.extension)) {
+                return Optional.of(clazz.cast(loadedExtension.extension));
+            }
+        }
+        return Optional.empty();
     }
 
     private static ClassLoader resolveClassLoader() {
