@@ -20,7 +20,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void fieldKeyCreatesDescriptor() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         EntityDescriptor<UUID, FieldKeyEntity> descriptor = factory.create(FieldKeyEntity.class);
 
@@ -33,7 +33,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void methodKeyCreatesDescriptor() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         EntityDescriptor<String, MethodKeyEntity> descriptor = factory.create(MethodKeyEntity.class);
 
@@ -44,7 +44,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void descriptorIsCreatedEachTime() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         EntityDescriptor<UUID, FieldKeyEntity> first = factory.create(FieldKeyEntity.class);
         EntityDescriptor<UUID, FieldKeyEntity> second = factory.create(FieldKeyEntity.class);
@@ -53,19 +53,50 @@ class BlueEntityDescriptorFactoryTest {
     }
 
     @Test
-    void customCodecFactoryIsUsed() {
-        CustomCodecFactory.calls = 0;
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+    void runtimeCodecProviderOverridesDefaultCodec() {
+        final int[] providerCalls = new int[1];
+        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory(new BlueEntityCodecProvider() {
+            @Override
+            public <V> Codec<V> create(Class<V> entityType, BlueEntity entity) {
+                providerCalls[0]++;
+                assertEquals(CustomCodecEntity.class, entityType);
+                assertEquals("custom_codec_entities", entity.collection());
+                return customCodec("application/provider");
+            }
+        });
 
         EntityDescriptor<UUID, CustomCodecEntity> descriptor = factory.create(CustomCodecEntity.class);
 
-        assertEquals(1, CustomCodecFactory.calls);
-        assertEquals("application/custom", descriptor.codec().contentType());
+        assertEquals(1, providerCalls[0]);
+        assertEquals("application/provider", descriptor.codec().contentType());
+    }
+
+    @Test
+    void nullRuntimeCodecFails() {
+        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory(new BlueEntityCodecProvider() {
+            @Override
+            public <V> Codec<V> create(Class<V> entityType, BlueEntity entity) {
+                return null;
+            }
+        });
+
+        BlueDescriptorException exception = assertThrows(BlueDescriptorException.class,
+                () -> factory.create(FieldKeyEntity.class));
+
+        assertTrue(exception.getMessage().contains("Codec provider returned null"));
+    }
+
+    @Test
+    void nullCodecProviderFails() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> new BlueEntityDescriptorFactory(null));
+
+        assertTrue(exception.getMessage().contains("codecProvider"));
     }
 
     @Test
     void indexedAnnotationIsPreservedByEveryDatabaseBuilder() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         EntityDescriptor<UUID, IndexedEntity> descriptor = factory.create(IndexedEntity.class);
 
@@ -77,7 +108,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void blueIndexCreatesIndex() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         EntityDescriptor<UUID, BlueIndexedEntity> descriptor = factory.create(BlueIndexedEntity.class);
 
@@ -90,7 +121,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void blueIndexSupportsDescendingOrder() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         EntityDescriptor<UUID, BlueDescendingIndexedEntity> descriptor = factory.create(BlueDescendingIndexedEntity.class);
 
@@ -103,7 +134,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void blueIndexSupportsNestedPathAndExplicitType() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         EntityDescriptor<UUID, BlueNestedIndexedEntity> descriptor = factory.create(BlueNestedIndexedEntity.class);
 
@@ -115,7 +146,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void optimisticLockAnnotationIsPreservedByEveryDatabaseBuilder() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         EntityDescriptor<UUID, OptimisticLockEntity> descriptor = factory.create(OptimisticLockEntity.class);
 
@@ -124,7 +155,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void blueOptimisticLockEnablesVersionedDescriptor() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         EntityDescriptor<UUID, BlueOptimisticLockEntity> descriptor = factory.create(BlueOptimisticLockEntity.class);
 
@@ -133,7 +164,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void versionedFlagCallsEveryDatabaseVersionedBuilder() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         EntityDescriptor<UUID, VersionedEntity> descriptor = factory.create(VersionedEntity.class);
 
@@ -142,7 +173,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void missingBlueEntityFails() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         BlueDescriptorException exception = assertThrows(BlueDescriptorException.class,
                 () -> factory.create(MissingEntityAnnotation.class));
@@ -152,7 +183,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void missingBlueKeyFails() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         BlueDescriptorException exception = assertThrows(BlueDescriptorException.class,
                 () -> factory.create(MissingKeyEntity.class));
@@ -162,7 +193,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void multipleBlueKeysFail() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         BlueDescriptorException exception = assertThrows(BlueDescriptorException.class,
                 () -> factory.create(MultipleKeyEntity.class));
@@ -172,7 +203,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void invalidBlueKeyMethodFails() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         BlueDescriptorException exception = assertThrows(BlueDescriptorException.class,
                 () -> factory.create(InvalidKeyMethodEntity.class));
@@ -182,7 +213,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void multipleBlueOptimisticLocksFail() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         BlueDescriptorException exception = assertThrows(BlueDescriptorException.class,
                 () -> factory.create(MultipleBlueOptimisticLockEntity.class));
@@ -192,7 +223,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void invalidBlueOptimisticLockTypeFails() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         BlueDescriptorException exception = assertThrows(BlueDescriptorException.class,
                 () -> factory.create(InvalidBlueOptimisticLockTypeEntity.class));
@@ -202,7 +233,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void staticBlueOptimisticLockFails() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         BlueDescriptorException exception = assertThrows(BlueDescriptorException.class,
                 () -> factory.create(StaticBlueOptimisticLockEntity.class));
@@ -212,7 +243,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void finalBlueOptimisticLockFails() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         BlueDescriptorException exception = assertThrows(BlueDescriptorException.class,
                 () -> factory.create(FinalBlueOptimisticLockEntity.class));
@@ -222,7 +253,7 @@ class BlueEntityDescriptorFactoryTest {
 
     @Test
     void blueOptimisticLockConflictsWithVersionedFlag() {
-        BlueEntityDescriptorFactory factory = new BlueEntityDescriptorFactory();
+        BlueEntityDescriptorFactory factory = jacksonFactory();
 
         BlueDescriptorException exception = assertThrows(BlueDescriptorException.class,
                 () -> factory.create(BlueOptimisticLockAndVersionedEntity.class));
@@ -246,35 +277,38 @@ class BlueEntityDescriptorFactoryTest {
         }
     }
 
-    @BlueEntity(collection = "custom_codec_entities", codecFactory = CustomCodecFactory.class)
+    @BlueEntity(collection = "custom_codec_entities")
     private static final class CustomCodecEntity {
         @BlueKey
         private UUID id = UUID.randomUUID();
     }
 
-    public static final class CustomCodecFactory implements BlueEntityCodecFactory {
-        private static int calls;
+    private static <V> Codec<V> customCodec(final String contentType) {
+        return new Codec<V>() {
+            @Override
+            public byte[] encode(V value) {
+                return new byte[0];
+            }
 
-        @Override
-        public <V> Codec<V> create(Class<V> entityType) {
-            calls++;
-            return new Codec<V>() {
-                @Override
-                public byte[] encode(V value) {
-                    return new byte[0];
-                }
+            @Override
+            public V decode(byte[] data) {
+                return null;
+            }
 
-                @Override
-                public V decode(byte[] data) {
-                    return null;
-                }
+            @Override
+            public String contentType() {
+                return contentType;
+            }
+        };
+    }
 
-                @Override
-                public String contentType() {
-                    return "application/custom";
-                }
-            };
-        }
+    private static BlueEntityDescriptorFactory jacksonFactory() {
+        return new BlueEntityDescriptorFactory(new BlueEntityCodecProvider() {
+            @Override
+            public <V> Codec<V> create(Class<V> entityType, BlueEntity entity) {
+                return new JacksonJsonCodec<V>(entityType);
+            }
+        });
     }
 
     @BlueEntity(collection = "indexed_entities")

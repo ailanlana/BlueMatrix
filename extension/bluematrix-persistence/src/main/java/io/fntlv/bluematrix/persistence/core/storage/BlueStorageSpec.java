@@ -1,4 +1,4 @@
-package io.fntlv.bluematrix.persistence.core;
+package io.fntlv.bluematrix.persistence.core.storage;
 
 import br.com.finalcraft.everydatabase.Storage;
 import br.com.finalcraft.everydatabase.StorageConfig;

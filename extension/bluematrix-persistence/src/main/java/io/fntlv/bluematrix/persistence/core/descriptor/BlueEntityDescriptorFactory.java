@@ -1,6 +1,7 @@
 package io.fntlv.bluematrix.persistence.core.descriptor;
 
 import br.com.finalcraft.everydatabase.EntityDescriptor;
+import br.com.finalcraft.everydatabase.codec.Codec;
 import br.com.finalcraft.everydatabase.query.IndexHint;
 
 import java.lang.reflect.AccessibleObject;
@@ -13,6 +14,15 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 public final class BlueEntityDescriptorFactory {
+    private final BlueEntityCodecProvider codecProvider;
+
+    public BlueEntityDescriptorFactory(BlueEntityCodecProvider codecProvider) {
+        if (codecProvider == null) {
+            throw new IllegalArgumentException("codecProvider cannot be null");
+        }
+        this.codecProvider = codecProvider;
+    }
+
     public <K, V> EntityDescriptor<K, V> create(Class<V> entityType) {
         if (entityType == null) {
             throw new IllegalArgumentException("entityType cannot be null");
@@ -26,15 +36,13 @@ public final class BlueEntityDescriptorFactory {
         }
 
         KeyMember keyMember = findKeyMember(entityType);
-        BlueEntityCodecFactory codecFactory = createCodecFactory(entity.codecFactory(), entityType);
-
         EntityDescriptor.Builder<K, V> builder = EntityDescriptor.builder(
                 keyMember.keyType(),
                 entityType
         );
         builder.collection(entity.collection().trim());
         builder.keyExtractor(keyMember.keyExtractor());
-        builder.codec(codecFactory.create(entityType));
+        builder.codec(createCodec(entityType, entity));
         applyIndexes(builder, entityType);
         applyOptimisticLock(builder, entityType, entity);
         if (entity.versioned()) {
@@ -45,6 +53,15 @@ public final class BlueEntityDescriptorFactory {
         } catch (RuntimeException e) {
             throw new BlueDescriptorException("Failed to build descriptor for entity: " + entityType.getName(), e);
         }
+    }
+
+    private <V> Codec<V> createCodec(Class<V> entityType, BlueEntity entity) {
+        Codec<V> codec;
+        codec = codecProvider.create(entityType, entity);
+        if (codec == null) {
+            throw new BlueDescriptorException("Codec provider returned null for entity: " + entityType.getName());
+        }
+        return codec;
     }
 
     private <K, V> void applyIndexes(EntityDescriptor.Builder<K, V> builder, Class<V> entityType) {
@@ -192,15 +209,6 @@ public final class BlueEntityDescriptorFactory {
                 });
             }
         };
-    }
-
-    private BlueEntityCodecFactory createCodecFactory(Class<? extends BlueEntityCodecFactory> factoryType, Class<?> entityType) {
-        try {
-            return factoryType.getDeclaredConstructor().newInstance();
-        } catch (Exception e) {
-            throw new BlueDescriptorException("Failed to create codec factory "
-                    + factoryType.getName() + " for entity: " + entityType.getName(), e);
-        }
     }
 
     private KeyMember findKeyMember(Class<?> entityType) {

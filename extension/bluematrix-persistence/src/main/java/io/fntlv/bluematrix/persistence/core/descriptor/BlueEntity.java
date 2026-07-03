@@ -10,7 +10,5 @@ import java.lang.annotation.Target;
 public @interface BlueEntity {
     String collection();
 
-    Class<? extends BlueEntityCodecFactory> codecFactory() default JacksonJsonCodecFactory.class;
-
     boolean versioned() default false;
 }

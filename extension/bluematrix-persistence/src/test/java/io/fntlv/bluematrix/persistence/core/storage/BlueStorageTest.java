@@ -1,16 +1,17 @@
-package io.fntlv.bluematrix.persistence.core;
+package io.fntlv.bluematrix.persistence.core.storage;
 
 import br.com.finalcraft.everydatabase.EntityDescriptor;
 import br.com.finalcraft.everydatabase.Storages;
 import br.com.finalcraft.everydatabase.codec.JacksonJsonCodec;
-import io.fntlv.bluematrix.persistence.core.descriptor.BlueEntity;
-import io.fntlv.bluematrix.persistence.core.descriptor.BlueKey;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BlueStorageTest {
 
@@ -27,29 +28,45 @@ class BlueStorageTest {
     }
 
     @Test
-    void classBasedDescriptorUsesInternalDescriptorCache() {
-        BlueStorage storage = new BlueStorage(Storages.createInMemory());
+    void exposesStableDataComponents() {
+        BlueStorage storage = new BlueStorage();
 
-        assertDoesNotThrow(() -> storage.descriptor(StorageEntity.class));
+        assertNotNull(storage.registry());
+        assertNotNull(storage.refRegistry());
+        assertSame(storage.registry(), storage.registry());
+        assertSame(storage.refRegistry(), storage.refRegistry());
     }
 
     @Test
-    void classBasedDescriptorIsCachedByStorage() {
-        BlueStorage storage = new BlueStorage(Storages.createInMemory());
+    void storageIsUnavailableBeforeInitialize() {
+        BlueStorage storage = new BlueStorage();
 
-        assertSame(storage.descriptor(StorageEntity.class), storage.descriptor(StorageEntity.class));
+        assertThrows(IllegalStateException.class, storage::storage);
     }
 
     @Test
-    void classBasedRepositoryUsesInternalDescriptorCache() {
-        BlueStorage storage = new BlueStorage(Storages.createInMemory());
+    void initializeRejectsNullStorage() {
+        BlueStorage storage = new BlueStorage();
 
-        assertDoesNotThrow(() -> storage.repository(StorageEntity.class));
+        assertThrows(IllegalArgumentException.class, () -> storage.initialize(null));
     }
 
-    @BlueEntity(collection = "storage_entities")
+    @Test
+    void initializeRejectsSecondStorage() {
+        BlueStorage storage = new BlueStorage(Storages.createInMemory());
+
+        assertThrows(IllegalStateException.class, () -> storage.initialize(Storages.createInMemory()));
+    }
+
+    @Test
+    void constructorInitializesStorage() {
+        BlueStorage storage = new BlueStorage(Storages.createInMemory());
+
+        assertTrue(storage.available());
+        assertNotNull(storage.storage());
+    }
+
     private static final class StorageEntity {
-        @BlueKey
         private UUID id = UUID.randomUUID();
     }
 }

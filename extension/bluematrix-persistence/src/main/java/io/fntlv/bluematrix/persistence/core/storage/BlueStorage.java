@@ -1,16 +1,14 @@
-package io.fntlv.bluematrix.persistence.core;
+package io.fntlv.bluematrix.persistence.core.storage;
 
 import br.com.finalcraft.everydatabase.EntityDescriptor;
 import br.com.finalcraft.everydatabase.Repository;
 import br.com.finalcraft.everydatabase.Storage;
-import io.fntlv.bluematrix.persistence.core.descriptor.BlueEntityDescriptorFactory;
-
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import br.com.finalcraft.everydatabase.manager.RefRegistry;
+import io.fntlv.bluematrix.persistence.core.data.BlueDataRegistry;
 
 public class BlueStorage {
-    private final Map<Class<?>, EntityDescriptor<?, ?>> descriptors = new ConcurrentHashMap<Class<?>, EntityDescriptor<?, ?>>();
-    private final BlueEntityDescriptorFactory descriptorFactory = new BlueEntityDescriptorFactory();
+    private final BlueDataRegistry registry = new BlueDataRegistry();
+    private final RefRegistry refRegistry = new RefRegistry();
     private volatile Storage storage;
 
     public BlueStorage() {
@@ -43,27 +41,12 @@ public class BlueStorage {
         return storage().repository(descriptor);
     }
 
-    @SuppressWarnings("unchecked")
-    public <K, V> EntityDescriptor<K, V> descriptor(Class<V> entityType) {
-        if (entityType == null) {
-            throw new IllegalArgumentException("entityType cannot be null");
-        }
-        EntityDescriptor<?, ?> descriptor = descriptors.get(entityType);
-        if (descriptor != null) {
-            return (EntityDescriptor<K, V>) descriptor;
-        }
-        synchronized (descriptors) {
-            descriptor = descriptors.get(entityType);
-            if (descriptor == null) {
-                descriptor = descriptorFactory.create(entityType);
-                descriptors.put(entityType, descriptor);
-            }
-            return (EntityDescriptor<K, V>) descriptor;
-        }
+    public BlueDataRegistry registry() {
+        return registry;
     }
 
-    public <K, V> Repository<K, V> repository(Class<V> entityType) {
-        return storage().repository(descriptor(entityType));
+    public RefRegistry refRegistry() {
+        return refRegistry;
     }
 
     public synchronized void initialize(Storage storage) {

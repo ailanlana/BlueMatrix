@@ -32,7 +32,7 @@ public final class PersistenceExtension implements BlueMatrixExtension {
 
     @Override
     public void apply(BlueMatrixExtensionBootstrap bootstrap, BlueMatrixExtensionContext context) {
-        ModulePersistenceRegistry persistenceRegistry = new ModulePersistenceRegistry(bootstrap.dataFolder());
+        ModulePersistenceRegistry persistenceRegistry = new ModulePersistenceRegistry();
         bootstrap.repository("https://maven.petrus.dev/public")
                 .repository("https://repo.maven.apache.org/maven2")
                 .extensionLibrary(
@@ -50,11 +50,11 @@ public final class PersistenceExtension implements BlueMatrixExtension {
                         context.getName(),
                         BlueLibraryFactory.of(HIKARI_CP)
                                 .relocate(HIKARI_PACKAGE, RELOCATED_HIKARI_PACKAGE)
-                );
+                )
+                .parameterResolver(new PersistenceContextResolver(persistenceRegistry))
+                .eventListener(new PersistenceModuleListener(bootstrap.dataFolder(), persistenceRegistry));
         for (String library : EVERY_DATABASE_RUNTIME_LIBRARIES) {
             bootstrap.extensionLibrary(context.getName(), library);
         }
-        bootstrap.parameterResolver(new PersistenceStorageResolver(persistenceRegistry))
-                .eventListener(new PersistenceModuleListener(persistenceRegistry));
     }
 }

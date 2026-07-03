@@ -1,80 +1,52 @@
 package io.fntlv.bluematrix.persistence.extension;
 
-import io.fntlv.bluematrix.core.module.ModuleContext;
-import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
-import io.fntlv.bluematrix.persistence.core.BlueStorage;
-
-import java.io.File;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 public class ModulePersistenceRegistry {
-    public static final String MODULES_DIRECTORY_NAME = "modules";
+    private final Map<String, DefaultModulePersistenceContext> contexts =
+            Collections.synchronizedMap(new HashMap<>());
 
-    private final File dataFolder;
-    private final Map<String, BlueStorage> registeredStorages = Collections.synchronizedMap(new HashMap<String, BlueStorage>());
-
-    public ModulePersistenceRegistry(File dataFolder) {
-        if (dataFolder == null) {
-            throw new IllegalArgumentException("dataFolder cannot be null");
+    void register(String moduleId, DefaultModulePersistenceContext context) {
+        if (moduleId == null || moduleId.trim().isEmpty()) {
+            throw new IllegalArgumentException("moduleId cannot be blank");
         }
-        this.dataFolder = dataFolder;
-    }
-
-    public BlueStorage registerStorage(ModuleCandidate candidate) {
-        return registerStorage(candidate.id());
-    }
-
-    public boolean containsStorage(ModuleCandidate candidate) {
-        return registeredStorages.containsKey(candidate.id());
-    }
-
-    public boolean containsStorage(ModuleContext context) {
-        return registeredStorages.containsKey(context.id());
-    }
-
-    public BlueStorage getStorage(ModuleCandidate candidate) {
-        return getStorage(candidate.id());
-    }
-
-    public BlueStorage getStorage(ModuleContext context) {
-        return getStorage(context.id());
-    }
-
-    public BlueStorage getStorage(String moduleId) {
-        BlueStorage storage = registeredStorages.get(moduleId);
-        if (storage == null) {
-            throw new IllegalStateException(missingStorageMessage(moduleId));
+        if (context == null) {
+            throw new IllegalArgumentException("context cannot be null");
         }
-        return storage;
+        contexts.put(moduleId, context);
     }
 
-    public File getModulePath(String moduleId) {
-        return new File(new File(dataFolder, MODULES_DIRECTORY_NAME), moduleId);
-    }
-
-    public File getModuleDataPath(String moduleId) {
-        return new File(getModulePath(moduleId), "data");
-    }
-
-    private BlueStorage registerStorage(String moduleId) {
-        synchronized (registeredStorages) {
-            BlueStorage storage = registeredStorages.get(moduleId);
-            if (storage == null) {
-                storage = createStorage();
-                registeredStorages.put(moduleId, storage);
-            }
-            return storage;
+    boolean contains(String moduleId) {
+        if (moduleId == null || moduleId.trim().isEmpty()) {
+            return false;
         }
+        return contexts.containsKey(moduleId);
     }
 
-    private String missingStorageMessage(String moduleId) {
-        return "BlueStorage should be registered for persistence-enabled modules. "
-                + "Missing storage indicates an unexpected persistence extension lifecycle state: " + moduleId;
+    Optional<ModulePersistenceContext> find(String moduleId) {
+        return findInternal(moduleId).map(context -> context);
     }
 
-    protected BlueStorage createStorage() {
-        return new BlueStorage();
+    Optional<DefaultModulePersistenceContext> findInternal(String moduleId) {
+        if (moduleId == null || moduleId.trim().isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(contexts.get(moduleId));
+    }
+
+    DefaultModulePersistenceContext get(String moduleId) {
+        return findInternal(moduleId).orElseThrow(() -> new IllegalStateException(missingContextMessage(moduleId)));
+    }
+
+    void remove(String moduleId) {
+        contexts.remove(moduleId);
+    }
+
+    private String missingContextMessage(String moduleId) {
+        return "ModulePersistenceContext should be registered for persistence-enabled modules. "
+                + "Missing context indicates an unexpected persistence extension state: " + moduleId;
     }
 }

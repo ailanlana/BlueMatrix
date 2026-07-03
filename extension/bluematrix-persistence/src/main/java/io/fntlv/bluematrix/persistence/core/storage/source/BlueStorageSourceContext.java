@@ -1,4 +1,4 @@
-package io.fntlv.bluematrix.persistence.core.sources;
+package io.fntlv.bluematrix.persistence.core.storage.source;
 
 import java.io.File;
 

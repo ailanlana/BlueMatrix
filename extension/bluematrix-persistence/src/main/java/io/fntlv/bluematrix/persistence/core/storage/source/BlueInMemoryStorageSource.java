@@ -1,6 +1,6 @@
-package io.fntlv.bluematrix.persistence.core.sources;
+package io.fntlv.bluematrix.persistence.core.storage.source;
 
-import io.fntlv.bluematrix.persistence.core.BlueStorageSpec;
+import io.fntlv.bluematrix.persistence.core.storage.BlueStorageSpec;
 
 public interface BlueInMemoryStorageSource extends BlueStorageSource {
     @Override

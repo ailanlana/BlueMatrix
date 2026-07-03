@@ -1,7 +1,7 @@
-package io.fntlv.bluematrix.persistence.core.sources;
+package io.fntlv.bluematrix.persistence.core.storage.source;
 
 import br.com.finalcraft.everydatabase.modules.localfile.LocalFileConfig;
-import io.fntlv.bluematrix.persistence.core.BlueStorageSpec;
+import io.fntlv.bluematrix.persistence.core.storage.BlueStorageSpec;
 
 import java.io.File;
 import java.time.Duration;

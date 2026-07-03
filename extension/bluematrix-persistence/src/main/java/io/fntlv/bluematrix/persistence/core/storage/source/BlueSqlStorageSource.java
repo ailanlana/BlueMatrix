@@ -1,8 +1,8 @@
-package io.fntlv.bluematrix.persistence.core.sources;
+package io.fntlv.bluematrix.persistence.core.storage.source;
 
 import br.com.finalcraft.everydatabase.modules.sql.PoolTuning;
 import br.com.finalcraft.everydatabase.modules.sql.SqlConfig;
-import io.fntlv.bluematrix.persistence.core.BlueStorageSpec;
+import io.fntlv.bluematrix.persistence.core.storage.BlueStorageSpec;
 
 import java.time.Duration;
 
