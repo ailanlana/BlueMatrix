@@ -1,6 +1,7 @@
 package io.fntlv.bluematrix.core.bootstrap;
 
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionBootstrap;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapability;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
 
@@ -60,6 +61,12 @@ final class DefaultBlueMatrixExtensionBootstrap implements BlueMatrixExtensionBo
     @Override
     public BlueMatrixExtensionBootstrap eventListener(Object listener) {
         plan.eventListener(listener);
+        return this;
+    }
+
+    @Override
+    public BlueMatrixExtensionBootstrap moduleCapability(ModuleCapability<?, ?> capability) {
+        plan.moduleCapability(capability);
         return this;
     }
 }

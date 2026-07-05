@@ -1,6 +1,7 @@
 package io.fntlv.bluematrix.lang.extension;
 
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionBootstrap;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapability;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
 import org.junit.jupiter.api.Test;
@@ -9,14 +10,13 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LangExtensionTest {
     @TempDir
     File tempDir;
 
     @Test
-    void applyOnlyRegistersLangModuleListener() {
+    void applyOnlyRegistersLangCapability() {
         RecordingBootstrap bootstrap = new RecordingBootstrap(tempDir);
 
         new LangExtension().apply(bootstrap, null);
@@ -24,8 +24,9 @@ class LangExtensionTest {
         assertEquals(0, bootstrap.repositories);
         assertEquals(0, bootstrap.extensionLibraries);
         assertEquals(0, bootstrap.parameterResolvers);
-        assertEquals(1, bootstrap.eventListeners);
-        assertTrue(bootstrap.lastEventListener instanceof LangModuleListener);
+        assertEquals(0, bootstrap.eventListeners);
+        assertEquals(1, bootstrap.moduleCapabilities);
+        assertEquals("lang", bootstrap.lastModuleCapability.id());
     }
 
     private static final class RecordingBootstrap implements BlueMatrixExtensionBootstrap {
@@ -34,7 +35,8 @@ class LangExtensionTest {
         private int extensionLibraries;
         private int parameterResolvers;
         private int eventListeners;
-        private Object lastEventListener;
+        private int moduleCapabilities;
+        private ModuleCapability<?, ?> lastModuleCapability;
 
         private RecordingBootstrap(File dataFolder) {
             this.dataFolder = dataFolder;
@@ -84,7 +86,13 @@ class LangExtensionTest {
         @Override
         public BlueMatrixExtensionBootstrap eventListener(Object listener) {
             eventListeners++;
-            lastEventListener = listener;
+            return this;
+        }
+
+        @Override
+        public BlueMatrixExtensionBootstrap moduleCapability(ModuleCapability<?, ?> capability) {
+            moduleCapabilities++;
+            lastModuleCapability = capability;
             return this;
         }
     }

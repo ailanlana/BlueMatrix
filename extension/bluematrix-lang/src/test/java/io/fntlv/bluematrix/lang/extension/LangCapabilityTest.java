@@ -4,7 +4,14 @@ import io.fntlv.bluematrix.config.core.Configs;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
+import io.fntlv.bluematrix.core.module.capability.EmptyModuleCapabilityContext;
+import io.fntlv.bluematrix.core.module.capability.EmptyModuleCapabilityState;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapability;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityListener;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityRegistry;
 import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleLoadEvent;
+import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegisterEvent;
 import io.fntlv.bluematrix.lang.core.BlueLangText;
 import io.fntlv.bluematrix.lang.core.LangType;
 import io.fntlv.bluematrix.lang.core.annotation.BlueLang;
@@ -21,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class LangModuleListenerTest {
+class LangCapabilityTest {
     @TempDir
     File tempDir;
 
@@ -34,9 +41,8 @@ class LangModuleListenerTest {
     @Test
     void loadsRegisteredLangClassIntoModuleFolder() {
         ModuleContext context = context(new LangModule());
-        LangModuleListener listener = new LangModuleListener(tempDir, new BlueLangLoader());
 
-        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
+        load(context, new BlueLangLoader());
 
         File zhFile = new File(tempDir, "lang-module/lang/" + LangType.ZH_CN + ".yml");
         File enFile = new File(tempDir, "lang-module/lang/" + LangType.EN_US + ".yml");
@@ -49,9 +55,8 @@ class LangModuleListenerTest {
     @Test
     void skipsModulesWithoutRegisteredLangClasses() {
         ModuleContext context = context(new PlainModule());
-        LangModuleListener listener = new LangModuleListener(tempDir, new BlueLangLoader());
 
-        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
+        load(context, new BlueLangLoader());
 
         assertFalse(new File(tempDir, "plain-module/lang").exists());
     }
@@ -61,9 +66,8 @@ class LangModuleListenerTest {
         ModuleContext context = context(new ExtendedLangModule());
         BlueLangLoader loader = new BlueLangLoader()
                 .register(ExampleExtendedText.class, ExampleExtendedText::new);
-        LangModuleListener listener = new LangModuleListener(tempDir, loader);
 
-        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
+        load(context, loader);
 
         File zhFile = new File(tempDir, "extended-lang-module/lang/" + LangType.ZH_CN + ".yml");
         assertEquals("扩展消息", ExtendedLang.message.text());
@@ -73,8 +77,10 @@ class LangModuleListenerTest {
 
     @Test
     void loadFailureReportsLoadPreError() {
-        LangModuleListener listener = new LangModuleListener(tempDir, new BlueLangLoader());
-        ModuleLoadEvent.Pre event = new ModuleLoadEvent.Pre(context(new BrokenLangModule()));
+        ModuleContext context = context(new BrokenLangModule());
+        ModuleCapabilityListener listener = listener(new BlueLangLoader());
+        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate(context)));
+        ModuleLoadEvent.Pre event = new ModuleLoadEvent.Pre(context);
 
         listener.onLoadPre(event);
 
@@ -85,8 +91,37 @@ class LangModuleListenerTest {
         assertEquals("Duplicate lang: " + LangType.ZH_CN, event.getErrorCause().getMessage());
     }
 
+    private void load(ModuleContext context, BlueLangLoader loader) {
+        ModuleCapabilityListener listener = listener(loader);
+        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate(context)));
+        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
+    }
+
+    private ModuleCapabilityListener listener(BlueLangLoader loader) {
+        ModuleCapabilityRegistry registry = new ModuleCapabilityRegistry();
+        registry.register(capability(loader));
+        return new ModuleCapabilityListener(registry);
+    }
+
+    private ModuleCapability<EmptyModuleCapabilityContext, EmptyModuleCapabilityState> capability(BlueLangLoader loader) {
+        ModuleLangInitializer initializer = new ModuleLangInitializer(tempDir, loader);
+        return ModuleCapability.<EmptyModuleCapabilityContext, EmptyModuleCapabilityState>builder("lang")
+                .onLoadPre((binding, event) -> {
+                    try {
+                        initializer.initialize(event.getContext());
+                    } catch (RuntimeException e) {
+                        event.error("lang", "Module language loading failed", e);
+                    }
+                })
+                .build();
+    }
+
     private ModuleContext context(Module module) {
         return new ModuleContext(module, module.getClass().getAnnotation(ModuleInfo.class));
+    }
+
+    private ModuleCandidate candidate(ModuleContext context) {
+        return new ModuleCandidate(context.getModuleClass(), context.getDescriptor());
     }
 
     @ModuleInfo(

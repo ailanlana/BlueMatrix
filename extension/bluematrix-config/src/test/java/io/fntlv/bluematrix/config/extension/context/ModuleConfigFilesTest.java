@@ -3,7 +3,7 @@ package io.fntlv.bluematrix.config.extension.context;
 import io.fntlv.bluematrix.config.core.Configs;
 import io.fntlv.bluematrix.config.core.file.ConfigFile;
 import io.fntlv.bluematrix.config.core.file.yaml.YamlConfigFileFormat;
-import io.fntlv.bluematrix.config.extension.ModuleConfigRegistry;
+import io.fntlv.bluematrix.config.extension.ModuleConfigFileNames;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -46,7 +46,7 @@ class ModuleConfigFilesTest {
         YamlConfigFileFormat format = new YamlConfigFileFormat();
         return new ModuleConfigFiles(fileName -> format.open(new File(
                 tempDir,
-                ModuleConfigRegistry.normalizeFileName(fileName)
+                ModuleConfigFileNames.normalize(fileName)
         )));
     }
 }

@@ -2,7 +2,6 @@ package io.fntlv.bluematrix.config.extension;
 
 import io.fntlv.bluematrix.config.YamlConfigTestUtil;
 import io.fntlv.bluematrix.config.core.Configs;
-import io.fntlv.bluematrix.config.core.file.yaml.YamlConfigFileFormat;
 import io.fntlv.bluematrix.config.extension.annotation.BlueConfig;
 import io.fntlv.bluematrix.config.extension.annotation.ConfigRegister;
 import io.fntlv.bluematrix.config.extension.context.ModuleConfigState;
@@ -16,30 +15,29 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ModuleConfigLifecycleTest {
+class ModuleConfigInitializerLifecycleTest {
     @TempDir
     File tempDir;
 
     @Test
     void loadRegistersConfigAndWritesDefaults() {
-        ModuleConfigRegistry registry = registry();
-        ModuleConfigLifecycle lifecycle = new ModuleConfigLifecycle(registry, new ConfigRegisterProcessor());
+        ModuleConfigInitializer initializer = initializer();
         ModuleContext context = context();
+        ModuleConfigState state = ConfigCapabilityTestSupport.state(tempDir, context);
 
-        ModuleConfigLoadResult result = lifecycle.load(context);
+        initializer.initialize(context, state);
 
-        LifecycleConfig config = registry.getContext(context).get(LifecycleConfig.class);
-        assertEquals(ModuleConfigLoadResult.ENABLED, result);
-        assertTrue(result.moduleEnabled());
+        LifecycleConfig config = state.get(LifecycleConfig.class);
+        assertTrue(state.moduleEnabled());
         assertEquals("hello", config.message);
         assertEquals(3, config.amount);
-        assertSame(config, registry.getContext(context).get(LifecycleConfig.class));
+        assertSame(config, state.get(LifecycleConfig.class));
         File file = new File(tempDir, "modules/lifecycle/config.yml");
         assertEquals("hello", Configs.yaml(file).getString("lifecycle.message"));
         assertEquals(3, Configs.yaml(file).getInt("lifecycle.amount"));
@@ -47,30 +45,30 @@ class ModuleConfigLifecycleTest {
 
     @Test
     void loadReadsExistingConfigValues() {
-        ModuleConfigRegistry registry = registry();
-        ModuleConfigLifecycle lifecycle = new ModuleConfigLifecycle(registry, new ConfigRegisterProcessor());
+        ModuleConfigInitializer initializer = initializer();
         ModuleContext context = context();
         File file = new File(tempDir, "modules/lifecycle/config.yml");
         YamlConfigTestUtil.write(file, "lifecycle:\n  message: existing\n  amount: 7\n");
+        ModuleConfigState state = ConfigCapabilityTestSupport.state(tempDir, context);
 
-        lifecycle.load(context);
+        initializer.initialize(context, state);
 
-        LifecycleConfig config = registry.getContext(context).get(LifecycleConfig.class);
+        LifecycleConfig config = state.get(LifecycleConfig.class);
         assertEquals("existing", config.message);
         assertEquals(7, config.amount);
     }
 
     @Test
     void saveWritesCurrentConfigValues() {
-        ModuleConfigRegistry registry = registry();
-        ModuleConfigLifecycle lifecycle = new ModuleConfigLifecycle(registry, new ConfigRegisterProcessor());
+        ModuleConfigInitializer initializer = initializer();
         ModuleContext context = context();
+        ModuleConfigState state = ConfigCapabilityTestSupport.state(tempDir, context);
 
-        lifecycle.load(context);
-        LifecycleConfig config = registry.getContext(context).get(LifecycleConfig.class);
+        initializer.initialize(context, state);
+        LifecycleConfig config = state.get(LifecycleConfig.class);
         config.message = "saved";
         config.amount = 9;
-        lifecycle.save(context);
+        initializer.save(context, state);
 
         File file = new File(tempDir, "modules/lifecycle/config.yml");
         assertEquals("saved", Configs.yaml(file).getString("lifecycle.message"));
@@ -79,16 +77,15 @@ class ModuleConfigLifecycleTest {
 
     @Test
     void loadReturnsDisabledWhenGeneralEnableIsFalse() {
-        ModuleConfigRegistry registry = registry();
-        ModuleConfigLifecycle lifecycle = new ModuleConfigLifecycle(registry, new ConfigRegisterProcessor());
+        ModuleConfigInitializer initializer = initializer();
         ModuleContext context = context();
         File file = new File(tempDir, "modules/lifecycle/config.yml");
         YamlConfigTestUtil.write(file, "general:\n  enable: false\n");
+        ModuleConfigState state = ConfigCapabilityTestSupport.state(tempDir, context);
 
-        ModuleConfigLoadResult result = lifecycle.load(context);
+        initializer.initialize(context, state);
 
-        assertEquals(ModuleConfigLoadResult.DISABLED, result);
-        assertFalse(result.moduleEnabled());
+        assertFalse(state.moduleEnabled());
     }
 
     @Test
@@ -97,16 +94,21 @@ class ModuleConfigLifecycleTest {
                 "expected load failure",
                 new IllegalStateException("broken")
         );
-        ModuleConfigLifecycle lifecycle = new ModuleConfigLifecycle(registry(), new ThrowingConfigRegisterProcessor(failure));
+        ModuleConfigInitializer initializer = ConfigCapabilityTestSupport.initializer(
+                tempDir,
+                new ThrowingConfigRegisterProcessor(failure)
+        );
+        ModuleContext context = context();
+        ModuleConfigState state = ConfigCapabilityTestSupport.state(tempDir, context);
 
         ConfigInjectionException exception = assertThrows(ConfigInjectionException.class,
-                () -> lifecycle.load(context()));
+                () -> initializer.initialize(context, state));
 
         assertSame(failure, exception);
     }
 
-    private ModuleConfigRegistry registry() {
-        return new ModuleConfigRegistry(tempDir, new YamlConfigFileFormat());
+    private ModuleConfigInitializer initializer() {
+        return ConfigCapabilityTestSupport.initializer(tempDir, new ConfigRegisterProcessor());
     }
 
     private ModuleContext context() {

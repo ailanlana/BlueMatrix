@@ -1,14 +1,12 @@
 package io.fntlv.bluematrix.configtest.customtype;
 
 import io.fntlv.bluematrix.config.core.Configs;
-import io.fntlv.bluematrix.config.core.file.yaml.YamlConfigFileFormat;
+import io.fntlv.bluematrix.config.extension.ConfigCapabilityTestSupport;
 import io.fntlv.bluematrix.config.extension.annotation.BlueConfig;
 import io.fntlv.bluematrix.config.core.file.ConfigFile;
 import io.fntlv.bluematrix.config.core.type.complex.ComplexTypeHandlers;
 import io.fntlv.bluematrix.config.extension.annotation.ConfigRegister;
-import io.fntlv.bluematrix.config.extension.ConfigModuleListener;
-import io.fntlv.bluematrix.config.extension.ModuleConfigRegistry;
-import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleLoadEvent;
+import io.fntlv.bluematrix.config.extension.context.ModuleConfigContext;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
@@ -20,7 +18,7 @@ import java.io.File;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class ConfigModuleListenerCustomTypeTest {
+class ConfigCapabilityCustomTypeTest {
 
     @TempDir
     File tempDir;
@@ -44,11 +42,9 @@ class ConfigModuleListenerCustomTypeTest {
                 .onConfigLoad((section, type) -> new CustomPoint(section.getInt("x"), section.getInt("y"))));
         CustomTypeModule module = new CustomTypeModule();
         ModuleContext context = new ModuleContext(module, CustomTypeModule.class.getAnnotation(ModuleInfo.class));
-        ModuleConfigRegistry configRegistry = new ModuleConfigRegistry(tempDir, new YamlConfigFileFormat());
+        ModuleConfigContext configContext = ConfigCapabilityTestSupport.load(tempDir, context);
 
-        new ConfigModuleListener(configRegistry).onLoadPre(new ModuleLoadEvent.Pre(context));
-
-        CustomTypeConfig config = configRegistry.getContext(context).get(CustomTypeConfig.class);
+        CustomTypeConfig config = configContext.get(CustomTypeConfig.class);
         assertEquals(7, config.point.x);
         assertEquals(9, config.point.y);
 

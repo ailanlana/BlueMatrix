@@ -1,9 +1,10 @@
 package io.fntlv.bluematrix.config.extension.context;
 
 import io.fntlv.bluematrix.config.core.file.ConfigFile;
-import io.fntlv.bluematrix.config.extension.ModuleConfigRegistry;
+import io.fntlv.bluematrix.config.extension.ModuleConfigFileNames;
 import io.fntlv.bluematrix.config.extension.register.RegisteredConfig;
 import io.fntlv.bluematrix.core.module.Module;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityState;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -12,22 +13,27 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
-public class ModuleConfigState {
+public class ModuleConfigState implements ModuleCapabilityState {
     private Module module;
     private final String moduleId;
     private final ModuleConfigFiles files;
     private final Map<Class<?>, Object> instances = new ConcurrentHashMap<>();
     private final List<RegisteredConfig> registeredConfigs = Collections.synchronizedList(new ArrayList<>());
+    private volatile boolean moduleEnabled = true;
 
     public ModuleConfigState(Module module, String moduleId, ConfigFile file) {
         this(module, moduleId, fileName -> {
             String normalized = file.getFile().getName();
-            String requested = ModuleConfigRegistry.normalizeFileName(fileName);
+            String requested = ModuleConfigFileNames.normalize(fileName);
             if (!normalized.equals(requested)) {
                 throw new IllegalStateException("Module config state cannot open additional config file: " + fileName);
             }
             return file;
         });
+    }
+
+    public ModuleConfigState(String moduleId, Function<String, ConfigFile> fileResolver) {
+        this(null, moduleId, fileResolver);
     }
 
     public ModuleConfigState(Module module, String moduleId, Function<String, ConfigFile> fileResolver) {
@@ -58,6 +64,14 @@ public class ModuleConfigState {
 
     public String moduleId() {
         return moduleId;
+    }
+
+    public boolean moduleEnabled() {
+        return moduleEnabled;
+    }
+
+    public void moduleEnabled(boolean moduleEnabled) {
+        this.moduleEnabled = moduleEnabled;
     }
 
     public Module module() {

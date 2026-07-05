@@ -9,6 +9,8 @@ import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleLoadEvent;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
+import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegisterEvent;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -25,7 +27,7 @@ class ConfigExtensionTest {
     File tempDir;
 
     @Test
-    void registersConfigModuleListener() {
+    void registersConfigCapability() {
         BlueMatrixLibraryLoader.downloaderForTesting((bootstrap, dataFolder, classLoader, scope, qualifier, library) -> {
         });
         try {
@@ -33,9 +35,14 @@ class ConfigExtensionTest {
                     .jarDirectory(tempDir)
                     .build();
 
+            ModuleCandidate candidate = new ModuleCandidate(
+                    ExtensionModule.class,
+                    ExtensionModule.class.getAnnotation(ModuleInfo.class)
+            );
+            blueMatrixContainer.getEventBus().publish(new ModuleRegisterEvent.Pre(candidate));
             blueMatrixContainer.getEventBus().publish(new ModuleLoadEvent.Pre(new ModuleContext(
                     new ExtensionModule(),
-                    ExtensionModule.class.getAnnotation(ModuleInfo.class)
+                    candidate
             )));
 
             assertTrue(new File(tempDir, "modules/extension-module/config.yml").exists());

@@ -1,6 +1,7 @@
 package io.fntlv.bluematrix.core.bootstrap;
 
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapability;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import io.fntlv.bluematrix.core.module.registration.provider.ModuleProvider;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
@@ -17,6 +18,7 @@ public final class BlueMatrixBootstrapPlan {
     private final List<ModuleProvider> moduleProviders = new ArrayList<>();
     private final List<Object> eventListeners = new ArrayList<>();
     private final List<ModuleParameterResolver> parameterResolvers = new ArrayList<>();
+    private final List<ModuleCapability<?, ?>> moduleCapabilities = new ArrayList<>();
 
     public BlueMatrixBootstrapPlan(File dataFolder, ClassLoader classLoader, BlueMatrixLibraryLoader libraryLoader) {
         if (dataFolder == null) {
@@ -64,6 +66,10 @@ public final class BlueMatrixBootstrapPlan {
         return Collections.unmodifiableList(parameterResolvers);
     }
 
+    public List<ModuleCapability<?, ?>> moduleCapabilities() {
+        return Collections.unmodifiableList(moduleCapabilities);
+    }
+
     public BlueMatrixBootstrapPlan repository(String repositoryUrl) {
         libraryLoader.addRepository(repositoryUrl);
         return this;
@@ -102,6 +108,14 @@ public final class BlueMatrixBootstrapPlan {
             throw new IllegalArgumentException("listener cannot be null");
         }
         eventListeners.add(listener);
+        return this;
+    }
+
+    public BlueMatrixBootstrapPlan moduleCapability(ModuleCapability<?, ?> capability) {
+        if (capability == null) {
+            throw new IllegalArgumentException("capability cannot be null");
+        }
+        moduleCapabilities.add(capability);
         return this;
     }
 }

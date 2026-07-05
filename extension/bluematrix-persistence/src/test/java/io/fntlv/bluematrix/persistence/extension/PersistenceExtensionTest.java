@@ -3,6 +3,7 @@ package io.fntlv.bluematrix.persistence.extension;
 import io.fntlv.bluematrix.core.BlueMatrixContainer;
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryScope;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityContextResolver;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import io.fntlv.bluematrix.loader.library.BlueLibrary;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,7 @@ class PersistenceExtensionTest {
     File tempDir;
 
     @Test
-    void registersPersistenceResolvers() {
+    void registersPersistenceCapabilityResolver() {
         BlueMatrixLibraryLoader.downloaderForTesting(new BlueMatrixLibraryLoader.Downloader() {
             @Override
             public void download(BlueMatrixLibraryLoader bootstrap,
@@ -33,7 +34,7 @@ class PersistenceExtensionTest {
                     .jarDirectory(tempDir)
                     .build();
 
-            assertTrue(hasResolver(container, PersistenceContextResolver.class));
+            assertTrue(hasResolver(container, ModuleCapabilityContextResolver.class));
         } finally {
             BlueMatrixLibraryLoader.downloaderForTesting(null);
         }

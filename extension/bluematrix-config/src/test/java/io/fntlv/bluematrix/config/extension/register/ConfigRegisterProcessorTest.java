@@ -2,10 +2,9 @@ package io.fntlv.bluematrix.config.extension.register;
 
 import io.fntlv.bluematrix.config.extension.annotation.BlueConfig;
 import io.fntlv.bluematrix.config.extension.register.ConfigDefinitionException;
-import io.fntlv.bluematrix.config.core.file.yaml.YamlConfigFileFormat;
+import io.fntlv.bluematrix.config.extension.ConfigCapabilityTestSupport;
 import io.fntlv.bluematrix.config.extension.register.ConfigInjectionException;
 import io.fntlv.bluematrix.config.extension.context.ModuleConfigState;
-import io.fntlv.bluematrix.config.extension.ModuleConfigRegistry;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
@@ -31,12 +30,11 @@ class ConfigRegisterProcessorTest {
                 module,
                 InvalidDefinitionModule.class.getAnnotation(ModuleInfo.class)
         );
-        ModuleConfigRegistry registry = new ModuleConfigRegistry(tempDir, new YamlConfigFileFormat());
         ConfigRegisterProcessor processor = new ConfigRegisterProcessor();
         ModuleConfigState state = new ModuleConfigState(
                 module,
                 context.id(),
-                registry.openFile(context.id())
+                ConfigCapabilityTestSupport.openFile(tempDir, context.id())
         );
 
         ConfigInjectionException exception = assertThrows(ConfigInjectionException.class,
@@ -52,12 +50,11 @@ class ConfigRegisterProcessorTest {
                 module,
                 InvalidDefinitionModule.class.getAnnotation(ModuleInfo.class)
         );
-        ModuleConfigRegistry registry = new ModuleConfigRegistry(tempDir, new YamlConfigFileFormat());
         ConfigRegisterProcessor processor = new ConfigRegisterProcessor();
         ModuleConfigState state = new ModuleConfigState(
                 module,
                 context.id(),
-                registry.openFile(context.id())
+                ConfigCapabilityTestSupport.openFile(tempDir, context.id())
         );
 
         ConfigInjectionException exception = assertThrows(ConfigInjectionException.class,
@@ -75,12 +72,11 @@ class ConfigRegisterProcessorTest {
                 module,
                 InvalidDefinitionModule.class.getAnnotation(ModuleInfo.class)
         );
-        ModuleConfigRegistry registry = new ModuleConfigRegistry(tempDir, new YamlConfigFileFormat());
         ConfigRegisterProcessor processor = new ConfigRegisterProcessor();
         ModuleConfigState state = new ModuleConfigState(
                 module,
                 context.id(),
-                fileName -> registry.openFile(context.id(), fileName)
+                fileName -> ConfigCapabilityTestSupport.openFile(tempDir, context.id(), fileName)
         );
 
         ConfigInjectionException exception = assertThrows(ConfigInjectionException.class,

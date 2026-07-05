@@ -3,9 +3,11 @@ package io.fntlv.bluematrix.persistence.extension;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtension;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionBootstrap;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionContext;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapability;
 import io.fntlv.bluematrix.loader.library.BlueLibraryFactory;
 
 public final class PersistenceExtension implements BlueMatrixExtension {
+    private static final String CAPABILITY_ID = "persistence";
     private static final String EVERY_DATABASE_CORE = "br.com.finalcraft.everydatabase:everydatabase-core:1.0.5";
     private static final String EVERY_DATABASE_MANAGER = "br.com.finalcraft.everydatabase:everydatabase-manager:1.0.5";
     private static final String HIKARI_CP = "com.zaxxer:HikariCP:4.0.3";
@@ -32,7 +34,7 @@ public final class PersistenceExtension implements BlueMatrixExtension {
 
     @Override
     public void apply(BlueMatrixExtensionBootstrap bootstrap, BlueMatrixExtensionContext context) {
-        ModulePersistenceRegistry persistenceRegistry = new ModulePersistenceRegistry();
+        ModulePersistenceInitializer initializer = new ModulePersistenceInitializer(bootstrap.dataFolder());
         bootstrap.repository("https://maven.petrus.dev/public")
                 .repository("https://repo.maven.apache.org/maven2")
                 .extensionLibrary(
@@ -51,10 +53,27 @@ public final class PersistenceExtension implements BlueMatrixExtension {
                         BlueLibraryFactory.of(HIKARI_CP)
                                 .relocate(HIKARI_PACKAGE, RELOCATED_HIKARI_PACKAGE)
                 )
-                .parameterResolver(new PersistenceContextResolver(persistenceRegistry))
-                .eventListener(new PersistenceModuleListener(bootstrap.dataFolder(), persistenceRegistry));
+                .moduleCapability(ModuleCapability.<ModulePersistenceContext, ModulePersistenceState>builder(CAPABILITY_ID)
+                        .contextType(ModulePersistenceContext.class)
+                        .enabledWhen(candidate -> BlueStorageSourceProvider.class.isAssignableFrom(candidate.getModuleClass()))
+                        .stateFactory(moduleId -> new ModulePersistenceState())
+                        .contextFactory(ModulePersistenceContext::new)
+                        .onEnablePre((binding, event) -> initializer.initialize(
+                                event.getContext(),
+                                binding.state().storage(),
+                                binding.state().cacheSyncCoordinator()
+                        ))
+                        .onDisablePost((binding, event) -> close(binding.state()))
+                        .onDisableFailed((binding, event) -> close(binding.state()))
+                        .build());
         for (String library : EVERY_DATABASE_RUNTIME_LIBRARIES) {
             bootstrap.extensionLibrary(context.getName(), library);
         }
+    }
+
+    private void close(ModulePersistenceState state) {
+        state.dataAccess().flushAllDirty().join();
+        state.cacheSyncCoordinator().close();
+        state.storage().close();
     }
 }

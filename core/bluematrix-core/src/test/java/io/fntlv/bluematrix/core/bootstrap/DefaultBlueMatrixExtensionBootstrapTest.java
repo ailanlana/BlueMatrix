@@ -2,6 +2,9 @@ package io.fntlv.bluematrix.core.bootstrap;
 
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionBootstrap;
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapability;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityContext;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityState;
 import io.fntlv.bluematrix.core.module.instance.InjectContext;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import org.junit.jupiter.api.Test;
@@ -26,15 +29,24 @@ class DefaultBlueMatrixExtensionBootstrapTest {
         BlueMatrixExtensionBootstrap bootstrap = new DefaultBlueMatrixExtensionBootstrap(plan);
         Object listener = new Object();
         ModuleParameterResolver resolver = new TestResolver();
+        ModuleCapability<TestContext, TestState> capability = ModuleCapability
+                .<TestContext, TestState>builder("test")
+                .contextType(TestContext.class)
+                .stateFactory(moduleId -> new TestState())
+                .contextFactory((moduleId, state) -> new TestContext())
+                .build();
 
         assertSame(tempDir, bootstrap.dataFolder());
         assertSame(bootstrap, bootstrap.eventListener(listener));
         assertSame(bootstrap, bootstrap.parameterResolver(resolver));
+        assertSame(bootstrap, bootstrap.moduleCapability(capability));
 
         assertEquals(1, plan.eventListeners().size());
         assertSame(listener, plan.eventListeners().get(0));
         assertEquals(1, plan.parameterResolvers().size());
         assertSame(resolver, plan.parameterResolvers().get(0));
+        assertEquals(1, plan.moduleCapabilities().size());
+        assertSame(capability, plan.moduleCapabilities().get(0));
     }
 
     private static final class TestResolver implements ModuleParameterResolver {
@@ -47,5 +59,15 @@ class DefaultBlueMatrixExtensionBootstrapTest {
         public Object resolve(Class<?> parameterType, InjectContext context) {
             return null;
         }
+    }
+
+    private static final class TestContext implements ModuleCapabilityContext {
+        @Override
+        public String moduleId() {
+            return "test";
+        }
+    }
+
+    private static final class TestState implements ModuleCapabilityState {
     }
 }

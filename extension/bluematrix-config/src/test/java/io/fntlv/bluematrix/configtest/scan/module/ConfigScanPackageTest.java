@@ -1,10 +1,8 @@
 package io.fntlv.bluematrix.configtest.scan.module;
 
-import io.fntlv.bluematrix.config.core.file.yaml.YamlConfigFileFormat;
-import io.fntlv.bluematrix.config.extension.ConfigModuleListener;
-import io.fntlv.bluematrix.config.extension.ModuleConfigRegistry;
+import io.fntlv.bluematrix.config.extension.ConfigCapabilityTestSupport;
+import io.fntlv.bluematrix.config.extension.context.ModuleConfigContext;
 import io.fntlv.bluematrix.configtest.scan.config.ExternalScanConfig;
-import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleLoadEvent;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
@@ -24,11 +22,9 @@ class ConfigScanPackageTest {
     void configRegisterCanBeDiscoveredFromConfiguredScanPackage() {
         ScanPackageModule module = new ScanPackageModule();
         ModuleContext context = new ModuleContext(module, ScanPackageModule.class.getAnnotation(ModuleInfo.class));
-        ModuleConfigRegistry registry = new ModuleConfigRegistry(tempDir, new YamlConfigFileFormat());
+        ModuleConfigContext configContext = ConfigCapabilityTestSupport.load(tempDir, context);
 
-        new ConfigModuleListener(registry).onLoadPre(new ModuleLoadEvent.Pre(context));
-
-        ExternalScanConfig config = registry.getContext(context).get(ExternalScanConfig.class);
+        ExternalScanConfig config = configContext.get(ExternalScanConfig.class);
         assertEquals("external", config.name);
     }
 

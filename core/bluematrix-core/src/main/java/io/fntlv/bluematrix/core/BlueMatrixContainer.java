@@ -8,6 +8,7 @@ import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionBootstrap;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionLoader;
 import io.fntlv.bluematrix.core.library.BlueMatrixLibraryLoader;
 import io.fntlv.bluematrix.core.module.ModuleRegistry;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapability;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolver;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
@@ -171,6 +172,12 @@ public final class BlueMatrixContainer {
         @Override
         public Builder parameterResolver(ModuleParameterResolver resolver) {
             plan.parameterResolver(resolver);
+            return this;
+        }
+
+        @Override
+        public Builder moduleCapability(ModuleCapability<?, ?> capability) {
+            plan.moduleCapability(capability);
             return this;
         }
 

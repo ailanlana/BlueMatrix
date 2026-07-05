@@ -10,14 +10,19 @@ import cc.carm.lib.easysql.api.function.SQLExceptionHandler;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
+import io.fntlv.bluematrix.core.module.capability.EmptyModuleCapabilityState;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapability;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityContextResolver;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityListener;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityRegistry;
+import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
+import io.fntlv.bluematrix.core.module.instance.inject.ModuleInject;
+import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleDisableEvent;
 import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleEnableEvent;
 import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
 import io.fntlv.bluematrix.core.module.registration.ModuleRegisterEvent;
 import io.fntlv.bluematrix.core.module.registration.exception.ModuleInstantiationException;
-import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
-import io.fntlv.bluematrix.core.module.instance.inject.ModuleInject;
-import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.sql.core.BlueDatabase;
 import io.fntlv.bluematrix.sql.core.BlueDatabaseSource;
 import org.junit.jupiter.api.Test;
@@ -43,183 +48,87 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class SqlModuleListenerTest {
+class SqlCapabilityTest {
 
     @Test
-    void resolverInjectsBlueDatabaseConstructorParameter() {
-        ModuleSqlRegistry registry = new ModuleSqlRegistry();
-        SqlModuleListener listener = new SqlModuleListener(registry);
-        ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
-        ModuleCandidate candidate = candidate(SourceProviderModule.class);
+    void resolverInjectsModuleSqlContextConstructorParameter() {
+        Fixture fixture = fixture(new FakeSqlManager());
+        ModuleCandidate candidate = candidate(ContextSqlModule.class);
 
-        parameterResolvers.registerIfAbsent(new SqlDatabaseResolver(registry));
-        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
-        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
-
-        assertEquals(1, parameterResolvers.resolvers().size());
-
-        SourceProviderModule module = (SourceProviderModule) new DefaultModuleInstanceFactory(parameterResolvers)
+        fixture.register(candidate);
+        ContextSqlModule module = (ContextSqlModule) new DefaultModuleInstanceFactory(fixture.parameterResolvers)
                 .create(candidate);
-        assertFalse(module.database.available());
-        assertSame(module.database, registry.getDatabase(candidate));
-        assertThrows(IllegalStateException.class, () -> module.database.sqlManager());
+
+        assertSame(module.sqlContext, fixture.capability.context(candidate.id()));
+        assertSame(module.sqlContext.database(), fixture.capability.context(candidate.id()).database());
     }
 
     @Test
-    void moduleWithoutSourceProviderDoesNotRegisterDatabase() {
-        ModuleSqlRegistry registry = new ModuleSqlRegistry();
-        SqlModuleListener listener = new SqlModuleListener(registry);
+    void nonSourceProviderDoesNotCreateSqlBinding() {
+        Fixture fixture = fixture(new FakeSqlManager());
         ModuleCandidate candidate = candidate(PlainModule.class);
-        PlainModule module = new PlainModule();
-        ModuleContext context = context(module);
+        ModuleContext context = context(new PlainModule());
 
-        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
-        assertFalse(registry.containsDatabase(candidate));
+        fixture.register(candidate);
+        fixture.listener.onEnablePre(new ModuleEnableEvent.Pre(context));
+        fixture.listener.onDisablePost(new ModuleDisableEvent.Post(context));
 
-        assertDoesNotThrow(() -> listener.onEnablePre(new ModuleEnableEvent.Pre(context)));
-        assertDoesNotThrow(() -> listener.onDisablePost(new ModuleDisableEvent.Post(context)));
-        assertDoesNotThrow(() -> listener.onDisableFailed(new ModuleDisableEvent.Failed(context, new IllegalStateException("disable failed"))));
-        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> registry.getDatabase(context));
-        assertExceptionMessageContains(exception, "BlueDatabase should be registered for SQL-enabled modules");
-        assertExceptionMessageContains(exception, "unexpected SQL extension lifecycle state");
-        assertExceptionMessageContains(exception, "plain");
+        assertFalse(fixture.capability.contains(candidate.id()));
     }
 
     @Test
-    void nonSourceProviderCannotInjectBlueDatabase() {
-        ModuleSqlRegistry registry = new ModuleSqlRegistry();
-        SqlModuleListener listener = new SqlModuleListener(registry);
-        ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
+    void nonSourceProviderCannotInjectModuleSqlContext() {
+        Fixture fixture = fixture(new FakeSqlManager());
         ModuleCandidate candidate = candidate(ConstructorSqlModule.class);
 
-        parameterResolvers.registerIfAbsent(new SqlDatabaseResolver(registry));
-        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
+        fixture.register(candidate);
 
-        assertFalse(registry.containsDatabase(candidate));
-        ModuleInstantiationException exception = assertThrows(ModuleInstantiationException.class, () -> new DefaultModuleInstanceFactory(parameterResolvers)
-                .create(candidate));
+        ModuleInstantiationException exception = assertThrows(ModuleInstantiationException.class,
+                () -> new DefaultModuleInstanceFactory(fixture.parameterResolvers).create(candidate));
         assertCauseMessageContains(exception,
-                "BlueDatabase injection requires module to implement BlueDatabaseSourceProvider");
+                "Module capability context is not registered for module");
+        assertCauseMessageContains(exception, ModuleSqlContext.class.getName());
         assertCauseMessageContains(exception, "constructor-sql");
-        assertCauseMessageContains(exception, ConstructorSqlModule.class.getName());
     }
 
     @Test
-    void lifecycleRegistersSourceProviderDatabase() {
-        ModuleSqlRegistry registry = new ModuleSqlRegistry();
-        ModuleSqlLifecycle lifecycle = new ModuleSqlLifecycle(registry);
-        ModuleCandidate candidate = candidate(SourceProviderModule.class);
-
-        lifecycle.register(candidate);
-        lifecycle.register(candidate);
-
-        assertTrue(registry.containsDatabase(candidate));
-        assertSame(registry.getDatabase(candidate), registry.getDatabase(candidate));
-    }
-
-    @Test
-    void lifecycleDoesNotRegisterPlainModuleDatabase() {
-        ModuleSqlRegistry registry = new ModuleSqlRegistry();
-        ModuleSqlLifecycle lifecycle = new ModuleSqlLifecycle(registry);
-        ModuleCandidate candidate = candidate(PlainModule.class);
-
-        lifecycle.register(candidate);
-
-        assertFalse(registry.containsDatabase(candidate));
-    }
-
-    @Test
-    void lifecycleInitializesDatabaseAndTables() {
+    void enablePreInitializesDatabaseAndTables() {
         RecordingSqlTable.reset();
         FailingSqlTable.reset();
         FakeSqlManager manager = new FakeSqlManager();
-        ModuleSqlRegistry registry = new TestModuleSqlRegistry(manager);
-        ModuleSqlLifecycle lifecycle = new ModuleSqlLifecycle(registry);
-        SourceProviderModule module = createModule(lifecycle, registry, SourceProviderModule.class);
+        Fixture fixture = fixture(manager);
+        SourceProviderModule module = fixture.create(SourceProviderModule.class);
         ModuleContext context = context(module);
 
-        lifecycle.initialize(context);
+        fixture.listener.onEnablePre(new ModuleEnableEvent.Pre(context));
 
-        assertTrue(module.database.available());
-        assertSame(manager, module.database.sqlManager());
-        assertSame(module.database, registry.getDatabase(context));
+        assertTrue(module.sqlContext.database().available());
+        assertSame(manager, module.sqlContext.database().sqlManager());
         assertEquals(1, RecordingSqlTable.createCalls);
         assertSame(manager, RecordingSqlTable.sqlManager);
     }
 
     @Test
-    void lifecycleRejectsNullDatabaseSource() {
-        ModuleSqlRegistry registry = new ModuleSqlRegistry();
-        ModuleSqlLifecycle lifecycle = new ModuleSqlLifecycle(registry);
-        NullSourceProviderModule module = new NullSourceProviderModule();
-        lifecycle.register(candidate(NullSourceProviderModule.class));
-
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> lifecycle.initialize(context(module)));
-
-        assertExceptionMessageContains(exception, "source cannot be null");
-    }
-
-    @Test
-    void lifecycleClosesRegisteredDatabase() {
+    void sourceProviderCanInjectModuleSqlContextField() {
         FakeSqlManager manager = new FakeSqlManager();
-        TestModuleSqlRegistry registry = new TestModuleSqlRegistry(manager);
-        ModuleSqlLifecycle lifecycle = new ModuleSqlLifecycle(registry);
-        SourceProviderModule module = createModule(lifecycle, registry, SourceProviderModule.class);
-        ModuleContext context = context(module);
+        Fixture fixture = fixture(manager);
+        FieldSqlModule module = fixture.create(FieldSqlModule.class);
 
-        lifecycle.initialize(context);
-        lifecycle.close(context);
+        fixture.listener.onEnablePre(new ModuleEnableEvent.Pre(context(module)));
 
-        assertEquals(1, ((RecordingBlueDatabase) registry.getDatabase(context)).closeCalls);
-    }
-
-    @Test
-    void moduleWithSourceProviderInitializesInjectedDatabase() {
-        FakeSqlManager manager = new FakeSqlManager();
-        ModuleSqlRegistry registry = new TestModuleSqlRegistry(manager);
-        SqlModuleListener listener = new SqlModuleListener(registry);
-        SourceProviderModule module = createModule(listener, registry, SourceProviderModule.class);
-        ModuleContext context = context(module);
-
-        assertFalse(module.database.available());
-
-        listener.onEnablePre(new ModuleEnableEvent.Pre(context));
-
-        assertTrue(module.database.available());
-        assertSame(manager, module.database.sqlManager());
-        assertSame(module.database, registry.getDatabase(context));
-        assertEquals("127.0.0.1", module.source.getIp());
-    }
-
-    @Test
-    void sourceProviderCanInjectBlueDatabaseField() {
-        RecordingSqlTable.reset();
-        FailingSqlTable.reset();
-        FakeSqlManager manager = new FakeSqlManager();
-        ModuleSqlRegistry registry = new TestModuleSqlRegistry(manager);
-        SqlModuleListener listener = new SqlModuleListener(registry);
-        FieldSqlModule module = createModule(listener, registry, FieldSqlModule.class);
-        ModuleContext context = context(module);
-
-        assertFalse(module.database.available());
-
-        listener.onEnablePre(new ModuleEnableEvent.Pre(context));
-
-        assertSame(manager, module.database.sqlManager());
-        assertSame(module.database, registry.getDatabase(context));
+        assertSame(manager, module.sqlContext.database().sqlManager());
     }
 
     @Test
     void sourceProviderFailureReportsEnablePreError() {
         RuntimeException failure = new RuntimeException("database source failed");
-        ModuleSqlRegistry registry = new ModuleSqlRegistry();
-        SqlModuleListener listener = new SqlModuleListener(registry);
+        Fixture fixture = fixture(new FakeSqlManager());
         ThrowingSourceProviderModule module = new ThrowingSourceProviderModule(failure);
-        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate(ThrowingSourceProviderModule.class)));
-        ModuleEnableEvent.Pre event = new ModuleEnableEvent.Pre(context(module));
+        ModuleContext context = context(module);
+        fixture.register(candidate(ThrowingSourceProviderModule.class));
+        ModuleEnableEvent.Pre event = new ModuleEnableEvent.Pre(context);
 
-        assertDoesNotThrow(() -> listener.onEnablePre(event));
+        assertDoesNotThrow(() -> fixture.listener.onEnablePre(event));
 
         assertTrue(event.hasError());
         assertEquals("sql", event.getErrorSource());
@@ -229,64 +138,16 @@ class SqlModuleListenerTest {
 
     @Test
     void nullSourceReportsEnablePreError() {
-        ModuleSqlRegistry registry = new ModuleSqlRegistry();
-        SqlModuleListener listener = new SqlModuleListener(registry);
+        Fixture fixture = fixture(new FakeSqlManager());
         NullSourceProviderModule module = new NullSourceProviderModule();
-        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate(NullSourceProviderModule.class)));
+        fixture.register(candidate(NullSourceProviderModule.class));
         ModuleEnableEvent.Pre event = new ModuleEnableEvent.Pre(context(module));
 
-        assertDoesNotThrow(() -> listener.onEnablePre(event));
+        assertDoesNotThrow(() -> fixture.listener.onEnablePre(event));
 
         assertTrue(event.hasError());
         assertEquals("sql", event.getErrorSource());
-        assertEquals("Module SQL initialization failed", event.getErrorMessage());
         assertTrue(event.getErrorCause() instanceof IllegalArgumentException);
-    }
-
-    @Test
-    void disableClosesInitializedDatabase() {
-        FakeSqlManager manager = new FakeSqlManager();
-        TestModuleSqlRegistry registry = new TestModuleSqlRegistry(manager);
-        SqlModuleListener listener = new SqlModuleListener(registry);
-        SourceProviderModule module = createModule(listener, registry, SourceProviderModule.class);
-        ModuleContext context = context(module);
-
-        listener.onEnablePre(new ModuleEnableEvent.Pre(context));
-        listener.onDisablePost(new ModuleDisableEvent.Post(context));
-        listener.onDisableFailed(new ModuleDisableEvent.Failed(context, new IllegalStateException("disable failed")));
-
-        assertEquals(2, ((RecordingBlueDatabase) registry.getDatabase(context)).closeCalls);
-    }
-
-    @Test
-    void enablePreCreatesSqlTableEnumsForSourceProviderModule() {
-        RecordingSqlTable.reset();
-        FailingSqlTable.reset();
-        FakeSqlManager manager = new FakeSqlManager();
-        ModuleSqlRegistry registry = new TestModuleSqlRegistry(manager);
-        SqlModuleListener listener = new SqlModuleListener(registry);
-        SourceProviderModule module = createModule(listener, registry, SourceProviderModule.class);
-        ModuleContext context = context(module);
-        ModuleEnableEvent.Pre event = new ModuleEnableEvent.Pre(context);
-
-        listener.onEnablePre(event);
-
-        assertFalse(event.hasError());
-        assertEquals(1, RecordingSqlTable.createCalls);
-        assertSame(manager, RecordingSqlTable.sqlManager);
-    }
-
-    @Test
-    void enablePreSkipsTableCreationForModulesWithoutRegisteredDatabase() {
-        RecordingSqlTable.reset();
-        FailingSqlTable.reset();
-        ModuleSqlRegistry registry = new ModuleSqlRegistry();
-        SqlModuleListener listener = new SqlModuleListener(registry);
-        PlainModule module = new PlainModule();
-
-        assertDoesNotThrow(() -> listener.onEnablePre(new ModuleEnableEvent.Pre(context(module))));
-
-        assertEquals(0, RecordingSqlTable.createCalls);
     }
 
     @Test
@@ -295,14 +156,11 @@ class SqlModuleListenerTest {
         FailingSqlTable.reset();
         SQLException failure = new SQLException("create table failed");
         FailingSqlTable.failure = failure;
-        FakeSqlManager manager = new FakeSqlManager();
-        ModuleSqlRegistry registry = new TestModuleSqlRegistry(manager);
-        SqlModuleListener listener = new SqlModuleListener(registry);
-        SourceProviderModule module = createModule(listener, registry, SourceProviderModule.class);
-        ModuleContext context = context(module);
-        ModuleEnableEvent.Pre event = new ModuleEnableEvent.Pre(context);
+        Fixture fixture = fixture(new FakeSqlManager());
+        SourceProviderModule module = fixture.create(SourceProviderModule.class);
+        ModuleEnableEvent.Pre event = new ModuleEnableEvent.Pre(context(module));
 
-        assertDoesNotThrow(() -> listener.onEnablePre(event));
+        assertDoesNotThrow(() -> fixture.listener.onEnablePre(event));
 
         assertTrue(event.hasError());
         assertEquals("sql", event.getErrorSource());
@@ -312,6 +170,43 @@ class SqlModuleListenerTest {
         assertExceptionMessageContains(event.getErrorCause(), "source-provider");
         assertSame(failure, event.getErrorCause().getCause());
         FailingSqlTable.reset();
+    }
+
+    @Test
+    void disableClosesDatabaseAndRemovesBinding() {
+        Fixture fixture = fixture(new FakeSqlManager());
+        SourceProviderModule module = fixture.create(SourceProviderModule.class);
+        ModuleContext context = context(module);
+
+        fixture.listener.onEnablePre(new ModuleEnableEvent.Pre(context));
+        fixture.listener.onDisablePost(new ModuleDisableEvent.Post(context));
+
+        assertEquals(1, ((RecordingBlueDatabase) module.sqlContext.database()).closeCalls);
+        assertFalse(fixture.capability.contains(context.id()));
+    }
+
+    private static Fixture fixture(SQLManager manager) {
+        ModuleSqlInitializer initializer = new ModuleSqlInitializer(
+                () -> new RecordingBlueDatabase(manager),
+                new SqlTableInitializer()
+        );
+        ModuleCapability<ModuleSqlContext, EmptyModuleCapabilityState> capability =
+                ModuleCapability.<ModuleSqlContext, EmptyModuleCapabilityState>builder("sql")
+                        .contextType(ModuleSqlContext.class)
+                        .enabledWhen(candidate -> BlueDatabaseSourceProvider.class
+                                .isAssignableFrom(candidate.getModuleClass()))
+                        .contextFactory((moduleId, state) -> initializer.createContext(moduleId))
+                        .onEnablePre((binding, event) -> {
+                            try {
+                                initializer.initialize(event.getContext(), binding.context());
+                            } catch (RuntimeException e) {
+                                event.error("sql", "Module SQL initialization failed", e);
+                            }
+                        })
+                        .onDisablePost((binding, event) -> initializer.close(binding.context()))
+                        .onDisableFailed((binding, event) -> initializer.close(binding.context()))
+                        .build();
+        return new Fixture(capability);
     }
 
     private static ModuleCandidate candidate(Class<? extends Module> type) {
@@ -339,41 +234,64 @@ class SqlModuleListenerTest {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private <T extends Module> T createModule(SqlModuleListener listener,
-                                              ModuleSqlRegistry registry,
-                                              Class<T> type) {
-        return createModule(candidate -> listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate)), registry, type);
-    }
+    private static final class Fixture {
+        private final ModuleCapability<ModuleSqlContext, EmptyModuleCapabilityState> capability;
+        private final ModuleCapabilityListener listener;
+        private final ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
 
-    @SuppressWarnings("unchecked")
-    private <T extends Module> T createModule(ModuleSqlLifecycle lifecycle,
-                                              ModuleSqlRegistry registry,
-                                              Class<T> type) {
-        return createModule(lifecycle::register, registry, type);
-    }
+        private Fixture(ModuleCapability<ModuleSqlContext, EmptyModuleCapabilityState> capability) {
+            this.capability = capability;
+            ModuleCapabilityRegistry registry = new ModuleCapabilityRegistry();
+            registry.register(capability);
+            this.listener = new ModuleCapabilityListener(registry);
+            parameterResolvers.registerIfAbsent(new ModuleCapabilityContextResolver(registry));
+        }
 
-    @SuppressWarnings("unchecked")
-    private <T extends Module> T createModule(SqlModuleRegistrar registrar,
-                                              ModuleSqlRegistry registry,
-                                              Class<T> type) {
-        ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
-        ModuleCandidate candidate = candidate(type);
-        parameterResolvers.registerIfAbsent(new SqlDatabaseResolver(registry));
-        registrar.register(candidate);
-        return (T) new DefaultModuleInstanceFactory(parameterResolvers).create(candidate);
-    }
+        private void register(ModuleCandidate candidate) {
+            listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
+        }
 
-    private interface SqlModuleRegistrar {
-        void register(ModuleCandidate candidate);
+        @SuppressWarnings("unchecked")
+        private <T extends Module> T create(Class<T> type) {
+            ModuleCandidate candidate = candidate(type);
+            register(candidate);
+            return (T) new DefaultModuleInstanceFactory(parameterResolvers).create(candidate);
+        }
     }
 
     @ModuleInfo(id = "constructor-sql", name = "Constructor SQL")
     private static class ConstructorSqlModule implements Module {
-        private final BlueDatabase database;
+        @SuppressWarnings("unused")
+        private final ModuleSqlContext sqlContext;
 
-        private ConstructorSqlModule(BlueDatabase database) {
-            this.database = database;
+        private ConstructorSqlModule(ModuleSqlContext sqlContext) {
+            this.sqlContext = sqlContext;
+        }
+
+        @Override
+        public void onLoad() {
+        }
+
+        @Override
+        public void onEnable() {
+        }
+
+        @Override
+        public void onDisable() {
+        }
+    }
+
+    @ModuleInfo(id = "context-sql", name = "Context SQL")
+    private static class ContextSqlModule implements Module, BlueDatabaseSourceProvider {
+        private final ModuleSqlContext sqlContext;
+
+        private ContextSqlModule(ModuleSqlContext sqlContext) {
+            this.sqlContext = sqlContext;
+        }
+
+        @Override
+        public BlueDatabaseSource getDatabaseSource() {
+            return new TestSource();
         }
 
         @Override
@@ -406,11 +324,11 @@ class SqlModuleListenerTest {
 
     @ModuleInfo(id = "source-provider", name = "Source Provider")
     private static class SourceProviderModule implements Module, BlueDatabaseSourceProvider {
-        private final BlueDatabase database;
+        private final ModuleSqlContext sqlContext;
         private final BlueDatabaseSource source = new TestSource();
 
-        private SourceProviderModule(BlueDatabase database) {
-            this.database = database;
+        private SourceProviderModule(ModuleSqlContext sqlContext) {
+            this.sqlContext = sqlContext;
         }
 
         @Override
@@ -434,12 +352,11 @@ class SqlModuleListenerTest {
     @ModuleInfo(id = "field-sql", name = "Field SQL")
     private static class FieldSqlModule implements Module, BlueDatabaseSourceProvider {
         @ModuleInject
-        private BlueDatabase database;
-        private final BlueDatabaseSource source = new TestSource();
+        private ModuleSqlContext sqlContext;
 
         @Override
         public BlueDatabaseSource getDatabaseSource() {
-            return source;
+            return new TestSource();
         }
 
         @Override
@@ -582,19 +499,6 @@ class SqlModuleListenerTest {
         @Override
         public String getTableName() {
             return "failing";
-        }
-    }
-
-    private static class TestModuleSqlRegistry extends ModuleSqlRegistry {
-        private final SQLManager manager;
-
-        private TestModuleSqlRegistry(SQLManager manager) {
-            this.manager = manager;
-        }
-
-        @Override
-        protected BlueDatabase createDatabase() {
-            return new RecordingBlueDatabase(manager);
         }
     }
 

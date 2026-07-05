@@ -6,6 +6,10 @@ import io.fntlv.bluematrix.core.event.DefaultModuleEventBus;
 import io.fntlv.bluematrix.core.event.ModuleEventBus;
 import io.fntlv.bluematrix.core.extension.BlueMatrixExtensionLoader;
 import io.fntlv.bluematrix.core.module.ModuleRegistry;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapability;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityContextResolver;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityListener;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityRegistry;
 import io.fntlv.bluematrix.core.module.instance.ModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleResolverComposition;
@@ -57,6 +61,8 @@ public final class BlueMatrixBootstrap {
         ModuleStore moduleStore = new ModuleStore();
         ModuleEventBus eventBus = new DefaultModuleEventBus();
         ModuleRegistry registry = new DefaultModuleRegistry(moduleStore, plan.dataFolder());
+        ModuleCapabilityRegistry capabilityRegistry = createCapabilityRegistry(plan);
+        registerCapabilityResolver(plan, capabilityRegistry);
         ModuleResolverComposition resolverComposition = ModuleResolverComposition.forContainer(
                 registry,
                 eventBus,
@@ -72,6 +78,7 @@ public final class BlueMatrixBootstrap {
         );
         LifecycleManager lifecycle = new DefaultLifecycleManager(moduleStore, eventBus);
         ModuleOrchestrator moduleOrchestrator = new DefaultModuleOrchestrator(moduleStore, moduleRegistrar, lifecycle);
+        registerCapabilityListener(eventBus, capabilityRegistry);
         registerListeners(eventBus, plan);
         moduleOrchestrator.initialize();
         return BlueMatrixContainer.create(
@@ -87,6 +94,28 @@ public final class BlueMatrixBootstrap {
     private void registerListeners(ModuleEventBus eventBus, BlueMatrixBootstrapPlan plan) {
         for (Object eventListener : plan.eventListeners()) {
             eventBus.registerListener(eventListener);
+        }
+    }
+
+    private ModuleCapabilityRegistry createCapabilityRegistry(BlueMatrixBootstrapPlan plan) {
+        ModuleCapabilityRegistry capabilityRegistry = new ModuleCapabilityRegistry();
+        for (ModuleCapability<?, ?> capability : plan.moduleCapabilities()) {
+            capabilityRegistry.register(capability);
+        }
+        return capabilityRegistry;
+    }
+
+    private void registerCapabilityResolver(BlueMatrixBootstrapPlan plan,
+                                            ModuleCapabilityRegistry capabilityRegistry) {
+        if (!capabilityRegistry.capabilities().isEmpty()) {
+            plan.parameterResolver(new ModuleCapabilityContextResolver(capabilityRegistry));
+        }
+    }
+
+    private void registerCapabilityListener(ModuleEventBus eventBus,
+                                            ModuleCapabilityRegistry capabilityRegistry) {
+        if (!capabilityRegistry.capabilities().isEmpty()) {
+            eventBus.registerListener(new ModuleCapabilityListener(capabilityRegistry));
         }
     }
 }

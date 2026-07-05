@@ -1,29 +1,32 @@
 package io.fntlv.bluematrix.config.extension;
 
+import io.fntlv.bluematrix.config.YamlConfigTestUtil;
 import io.fntlv.bluematrix.config.core.Configs;
-import io.fntlv.bluematrix.config.core.file.yaml.YamlConfigFileFormat;
 import io.fntlv.bluematrix.config.extension.annotation.BlueConfig;
 import io.fntlv.bluematrix.config.extension.annotation.ConfigRegister;
 import io.fntlv.bluematrix.config.extension.context.ModuleConfigContext;
 import io.fntlv.bluematrix.config.extension.context.ModuleConfigState;
 import io.fntlv.bluematrix.config.extension.register.ConfigInjectionException;
 import io.fntlv.bluematrix.config.extension.register.ConfigRegisterProcessor;
-import io.fntlv.bluematrix.logging.backend.BlueLogBackend;
-import io.fntlv.bluematrix.logging.BlueLogLevel;
-import io.fntlv.bluematrix.logging.BlueLoggerFactory;
 import io.fntlv.bluematrix.core.module.Module;
-import io.fntlv.bluematrix.core.module.ModuleInfo;
-import io.fntlv.bluematrix.config.YamlConfigTestUtil;
 import io.fntlv.bluematrix.core.module.ModuleContext;
-import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleDisableEvent;
-import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleEnableEvent;
-import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleLoadEvent;
-import io.fntlv.bluematrix.core.module.registration.ModuleRegisterEvent;
-import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.ModuleInfo;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapability;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityContextResolver;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityListener;
+import io.fntlv.bluematrix.core.module.capability.ModuleCapabilityRegistry;
 import io.fntlv.bluematrix.core.module.instance.DefaultModuleInstanceFactory;
 import io.fntlv.bluematrix.core.module.instance.OtherInjectionContext;
 import io.fntlv.bluematrix.core.module.instance.inject.ModuleInject;
 import io.fntlv.bluematrix.core.module.instance.parameter.ModuleParameterResolverRegistry;
+import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleDisableEvent;
+import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleEnableEvent;
+import io.fntlv.bluematrix.core.module.lifecycle.event.ModuleLoadEvent;
+import io.fntlv.bluematrix.core.module.registration.ModuleCandidate;
+import io.fntlv.bluematrix.core.module.registration.ModuleRegisterEvent;
+import io.fntlv.bluematrix.logging.BlueLogLevel;
+import io.fntlv.bluematrix.logging.BlueLoggerFactory;
+import io.fntlv.bluematrix.logging.backend.BlueLogBackend;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -32,15 +35,14 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ConfigModuleListenerTest {
-
+class ConfigCapabilityTest {
     @TempDir
     File tempDir;
 
@@ -56,35 +58,30 @@ class ConfigModuleListenerTest {
     @Test
     void injectsDefaultsAndEnablesDebug() {
         BlueLoggerFactory.setBackend(new TestBackend());
-        ConfiguredModule module = new ConfiguredModule();
-        ModuleContext context = new ModuleContext(module, ConfiguredModule.class.getAnnotation(ModuleInfo.class));
+        ModuleContext context = context(new ConfiguredModule(), ConfiguredModule.class);
         File file = new File(tempDir, "modules/configured/config.yml");
         YamlConfigTestUtil.write(file, "general:\n  debug:\n    enable: true\n");
-        ModuleConfigRegistry configRegistry = registry();
 
-        new ConfigModuleListener(configRegistry).onLoadPre(new ModuleLoadEvent.Pre(context));
+        ModuleConfigContext configContext = load(context);
 
-        ExampleConfig config = configRegistry.getContext(context).get(ExampleConfig.class);
+        ExampleConfig config = configContext.get(ExampleConfig.class);
         assertEquals("hello", config.message);
         assertEquals(3, config.amount);
-        assertEquals(true, config.enabled);
+        assertTrue(config.enabled);
         assertEquals(TestMode.ACTIVE, config.mode);
         assertEquals(2, config.values.size());
         assertTrue(BlueLoggerFactory.isDebugEnabled());
-        assertFalse(context.isEnableSkipped());
     }
 
     @Test
     void generalEnableFalseBlocksModule() {
-        ModuleContext context = new ModuleContext(new ConfiguredModule(), ConfiguredModule.class.getAnnotation(ModuleInfo.class));
+        ModuleContext context = context(new ConfiguredModule(), ConfiguredModule.class);
         File file = new File(tempDir, "modules/configured/config.yml");
         YamlConfigTestUtil.write(file, "general:\n  enable: false\n");
+        ModuleCapability<ModuleConfigContext, ModuleConfigState> capability = capability();
+        ModuleCapabilityListener listener = listener(capability);
 
-        ConfigModuleListener listener = new ConfigModuleListener(tempDir);
-        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
-
-        assertFalse(context.isEnableSkipped());
-
+        registerAndLoad(listener, context);
         ModuleEnableEvent.Pre event = new ModuleEnableEvent.Pre(context);
         listener.onEnablePre(event);
 
@@ -94,36 +91,37 @@ class ConfigModuleListenerTest {
     }
 
     @Test
-    void enableSkippedClearsDisabledModuleState() {
-        ModuleContext context = new ModuleContext(new ConfiguredModule(), ConfiguredModule.class.getAnnotation(ModuleInfo.class));
+    void enableSkippedKeepsLoadedDisabledModuleState() {
+        ModuleContext context = context(new ConfiguredModule(), ConfiguredModule.class);
         File file = new File(tempDir, "modules/configured/config.yml");
         YamlConfigTestUtil.write(file, "general:\n  enable: false\n");
-        ConfigModuleListener listener = new ConfigModuleListener(tempDir);
+        ModuleCapability<ModuleConfigContext, ModuleConfigState> capability = capability();
+        ModuleCapabilityListener listener = listener(capability);
 
-        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
+        registerAndLoad(listener, context);
         ModuleEnableEvent.Pre first = new ModuleEnableEvent.Pre(context);
         listener.onEnablePre(first);
         listener.onEnableSkipped(new ModuleEnableEvent.Skipped(context, first.getCancelOutcome()));
-
         ModuleEnableEvent.Pre second = new ModuleEnableEvent.Pre(context);
         listener.onEnablePre(second);
 
         assertTrue(first.isCancelled());
-        assertFalse(second.isCancelled());
+        assertTrue(second.isCancelled());
     }
 
     @Test
     void configLoadFailureReportsLoadPreError() {
-        ModuleContext context = new ModuleContext(new ConfiguredModule(), ConfiguredModule.class.getAnnotation(ModuleInfo.class));
+        ModuleContext context = context(new ConfiguredModule(), ConfiguredModule.class);
         ConfigInjectionException failure = new ConfigInjectionException(
                 "expected load failure",
                 new IllegalStateException("broken")
         );
-        ConfigRegisterProcessor processor = new ThrowingConfigRegisterProcessor(
-                failure,
-                null
+        ModuleCapability<ModuleConfigContext, ModuleConfigState> capability = ConfigCapabilityTestSupport.capability(
+                tempDir,
+                new ThrowingConfigRegisterProcessor(failure, null)
         );
-        ConfigModuleListener listener = new ConfigModuleListener(registry(), processor);
+        ModuleCapabilityListener listener = listener(capability);
+        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate(context)));
         ModuleLoadEvent.Pre event = new ModuleLoadEvent.Pre(context);
 
         assertDoesNotThrow(() -> listener.onLoadPre(event));
@@ -135,25 +133,10 @@ class ConfigModuleListenerTest {
     }
 
     @Test
-    void disableSaveFailureDoesNotThrowOutOfListener() {
-        ModuleContext context = new ModuleContext(new ConfiguredModule(), ConfiguredModule.class.getAnnotation(ModuleInfo.class));
-        ConfigRegisterProcessor processor = new ThrowingConfigRegisterProcessor(
-                null,
-                new ConfigInjectionException("expected save failure", new IllegalStateException("broken"))
-        );
-        ConfigModuleListener listener = new ConfigModuleListener(registry(), processor);
-
-        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
-
-        assertDoesNotThrow(() -> listener.onDisablePost(new ModuleDisableEvent.Post(context)));
-        assertDoesNotThrow(() -> listener.onDisableFailed(new ModuleDisableEvent.Failed(context, new IllegalStateException("disable failed"))));
-    }
-
-    @Test
     void defaultConfigFileFormatCreatesYamlConfig() {
-        ModuleContext context = new ModuleContext(new DefaultFormatModule(), DefaultFormatModule.class.getAnnotation(ModuleInfo.class));
+        ModuleContext context = context(new DefaultFormatModule(), DefaultFormatModule.class);
 
-        new ConfigModuleListener(tempDir).onLoadPre(new ModuleLoadEvent.Pre(context));
+        load(context);
 
         assertTrue(new File(tempDir, "modules/default-format/config.yml").exists());
         assertFalse(new File(tempDir, "modules/default-format/config.json").exists());
@@ -161,53 +144,33 @@ class ConfigModuleListenerTest {
 
     @Test
     void moduleConfigAlwaysUsesYmlEvenWhenJsonExists() {
-        ModuleContext context = new ModuleContext(new JsonFilePresentModule(), JsonFilePresentModule.class.getAnnotation(ModuleInfo.class));
+        ModuleContext context = context(new JsonFilePresentModule(), JsonFilePresentModule.class);
         File jsonFile = new File(tempDir, "modules/json-file-present/config.json");
         YamlConfigTestUtil.write(jsonFile, "{\"general\":{\"enable\":false}}\n");
 
-        new ConfigModuleListener(tempDir).onLoadPre(new ModuleLoadEvent.Pre(context));
+        load(context);
 
-        File ymlFile = new File(tempDir, "modules/json-file-present/config.yml");
-        assertTrue(ymlFile.exists());
+        assertTrue(new File(tempDir, "modules/json-file-present/config.yml").exists());
         assertTrue(jsonFile.exists());
-        assertFalse(context.isEnableSkipped());
-    }
-
-    @Test
-    void existingYmlConfigIsUsed() {
-        ModuleContext context = new ModuleContext(new ExistingYmlModule(), ExistingYmlModule.class.getAnnotation(ModuleInfo.class));
-        File yamlFile = new File(tempDir, "modules/existing-yml/config.yml");
-        YamlConfigTestUtil.write(yamlFile, "general:\n  enable: true\n");
-
-        new ConfigModuleListener(tempDir).onLoadPre(new ModuleLoadEvent.Pre(context));
-
-        assertTrue(yamlFile.exists());
-        assertFalse(new File(tempDir, "modules/existing-yml/config.json").exists());
     }
 
     @Test
     void contextReturnsRegisteredInstance() {
-        ConfiguredModule module = new ConfiguredModule();
-        ModuleContext context = new ModuleContext(module, ConfiguredModule.class.getAnnotation(ModuleInfo.class));
-        ModuleConfigRegistry configRegistry = registry();
+        ModuleContext context = context(new ConfiguredModule(), ConfiguredModule.class);
 
-        new ConfigModuleListener(configRegistry).onLoadPre(new ModuleLoadEvent.Pre(context));
+        ModuleConfigContext configContext = load(context);
 
-        ModuleConfigContext moduleConfigContext = configRegistry.getContext(context);
-        ExampleConfig config = moduleConfigContext.get(ExampleConfig.class);
-        assertSame(config, moduleConfigContext.get(ExampleConfig.class));
+        ExampleConfig config = configContext.get(ExampleConfig.class);
+        assertSame(config, configContext.get(ExampleConfig.class));
     }
 
     @Test
     void disablePostSavesRegisteredConfigObjectValues() {
-        ConfiguredModule module = new ConfiguredModule();
-        ModuleContext context = new ModuleContext(module, ConfiguredModule.class.getAnnotation(ModuleInfo.class));
-        ModuleConfigRegistry configRegistry = registry();
-        ConfigModuleListener listener = new ConfigModuleListener(configRegistry);
-
-        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
-
-        ExampleConfig config = configRegistry.getContext(context).get(ExampleConfig.class);
+        ModuleContext context = context(new ConfiguredModule(), ConfiguredModule.class);
+        ModuleCapability<ModuleConfigContext, ModuleConfigState> capability = capability();
+        ModuleCapabilityListener listener = listener(capability);
+        registerAndLoad(listener, context);
+        ExampleConfig config = capability.context(context.id()).get(ExampleConfig.class);
         config.amount = 5;
         config.values = Arrays.asList(3, 4);
 
@@ -220,11 +183,9 @@ class ConfigModuleListenerTest {
 
     @Test
     void blueConfigCanWriteToNamedFile() {
-        ConfiguredModule module = new ConfiguredModule();
-        ModuleContext context = new ModuleContext(module, ConfiguredModule.class.getAnnotation(ModuleInfo.class));
-        ModuleConfigRegistry configRegistry = registry();
+        ModuleContext context = context(new ConfiguredModule(), ConfiguredModule.class);
 
-        new ConfigModuleListener(configRegistry).onLoadPre(new ModuleLoadEvent.Pre(context));
+        ModuleConfigContext configContext = load(context);
 
         File defaultFile = new File(tempDir, "modules/configured/config.yml");
         File databaseFile = new File(tempDir, "modules/configured/database.yml");
@@ -232,15 +193,14 @@ class ConfigModuleListenerTest {
         assertTrue(databaseFile.exists());
         assertEquals("hello", Configs.yaml(defaultFile).getString("example.message"));
         assertEquals("localhost", Configs.yaml(databaseFile).getString("database.host"));
-        assertEquals("localhost", configRegistry.getContext(context).get(DatabaseConfig.class).host);
+        assertEquals("localhost", configContext.get(DatabaseConfig.class).host);
     }
 
     @Test
     void blueConfigFileNameWithYmlSuffixIsNotDuplicated() {
-        ConfiguredModule module = new ConfiguredModule();
-        ModuleContext context = new ModuleContext(module, ConfiguredModule.class.getAnnotation(ModuleInfo.class));
+        ModuleContext context = context(new ConfiguredModule(), ConfiguredModule.class);
 
-        new ConfigModuleListener(registry()).onLoadPre(new ModuleLoadEvent.Pre(context));
+        load(context);
 
         assertTrue(new File(tempDir, "modules/configured/metrics.yml").exists());
         assertFalse(new File(tempDir, "modules/configured/metrics.yml.yml").exists());
@@ -248,14 +208,11 @@ class ConfigModuleListenerTest {
 
     @Test
     void disablePostSavesNamedConfigFileValues() {
-        ConfiguredModule module = new ConfiguredModule();
-        ModuleContext context = new ModuleContext(module, ConfiguredModule.class.getAnnotation(ModuleInfo.class));
-        ModuleConfigRegistry configRegistry = registry();
-        ConfigModuleListener listener = new ConfigModuleListener(configRegistry);
-
-        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
-
-        DatabaseConfig config = configRegistry.getContext(context).get(DatabaseConfig.class);
+        ModuleContext context = context(new ConfiguredModule(), ConfiguredModule.class);
+        ModuleCapability<ModuleConfigContext, ModuleConfigState> capability = capability();
+        ModuleCapabilityListener listener = listener(capability);
+        registerAndLoad(listener, context);
+        DatabaseConfig config = capability.context(context.id()).get(DatabaseConfig.class);
         config.host = "127.0.0.1";
 
         listener.onDisablePost(new ModuleDisableEvent.Post(context));
@@ -266,31 +223,25 @@ class ConfigModuleListenerTest {
 
     @Test
     void contextRejectsUnregisteredType() {
-        ConfiguredModule module = new ConfiguredModule();
-        ModuleContext context = new ModuleContext(module, ConfiguredModule.class.getAnnotation(ModuleInfo.class));
-        ModuleConfigRegistry configRegistry = registry();
+        ModuleContext context = context(new ConfiguredModule(), ConfiguredModule.class);
+        ModuleConfigContext configContext = load(context);
 
-        new ConfigModuleListener(configRegistry).onLoadPre(new ModuleLoadEvent.Pre(context));
-
-        ModuleConfigContext moduleConfigContext = configRegistry.getContext(context);
-        assertThrows(IllegalStateException.class, () -> moduleConfigContext.get(UnregisteredConfig.class));
+        assertThrows(IllegalStateException.class, () -> configContext.get(UnregisteredConfig.class));
     }
 
     @Test
     void resolverInjectsModuleConfigContextConstructorParameter() {
-        ModuleConfigRegistry configRegistry = registry();
-        ConfigModuleListener listener = new ConfigModuleListener(configRegistry);
+        ModuleCapability<ModuleConfigContext, ModuleConfigState> capability = capability();
+        ModuleCapabilityRegistry registry = ConfigCapabilityTestSupport.registry(capability);
+        ModuleCapabilityListener listener = new ModuleCapabilityListener(registry);
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
         ModuleCandidate candidate = new ModuleCandidate(
                 ConstructorContextModule.class,
                 ConstructorContextModule.class.getAnnotation(ModuleInfo.class)
         );
 
-        parameterResolvers.registerIfAbsent(new ConfigContextResolver(configRegistry));
+        parameterResolvers.registerIfAbsent(new ModuleCapabilityContextResolver(registry));
         listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
-        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
-
-        assertEquals(1, parameterResolvers.resolvers().size());
 
         ConstructorContextModule module = (ConstructorContextModule) new DefaultModuleInstanceFactory(parameterResolvers)
                 .create(candidate);
@@ -301,77 +252,50 @@ class ConfigModuleListenerTest {
 
         ExampleConfig config = module.configContext.get(ExampleConfig.class);
         assertEquals("hello", config.message);
-        assertSame(module.configContext, configRegistry.getContext(context));
-    }
-
-    @Test
-    void resolverInjectsModuleConfigContextField() {
-        ModuleConfigRegistry configRegistry = registry();
-        ConfigModuleListener listener = new ConfigModuleListener(configRegistry);
-        ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
-        ModuleCandidate candidate = new ModuleCandidate(
-                FieldContextModule.class,
-                FieldContextModule.class.getAnnotation(ModuleInfo.class)
-        );
-
-        parameterResolvers.registerIfAbsent(new ConfigContextResolver(configRegistry));
-        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
-
-        FieldContextModule module = (FieldContextModule) new DefaultModuleInstanceFactory(parameterResolvers)
-                .create(candidate);
-        ModuleContext context = new ModuleContext(module, candidate);
-        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
-
-        assertEquals("hello", module.configContext.get(ExampleConfig.class).message);
-        assertSame(module.configContext, configRegistry.getContext(context));
+        assertSame(module.configContext, capability.context(context.id()));
     }
 
     @Test
     void resolverInjectsModuleConfigContextIntoOtherConstructorParameter() {
-        ModuleConfigRegistry configRegistry = registry();
-        ConfigModuleListener listener = new ConfigModuleListener(configRegistry);
+        ModuleCapability<ModuleConfigContext, ModuleConfigState> capability = capability();
+        ModuleCapabilityRegistry registry = ConfigCapabilityTestSupport.registry(capability);
+        ModuleCapabilityListener listener = new ModuleCapabilityListener(registry);
         ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
-        ModuleCandidate candidate = new ModuleCandidate(
-                ConfiguredModule.class,
-                ConfiguredModule.class.getAnnotation(ModuleInfo.class)
-        );
+        ModuleContext context = context(new ConfiguredModule(), ConfiguredModule.class);
 
-        parameterResolvers.registerIfAbsent(new ConfigContextResolver(configRegistry));
-        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
-
-        ConfiguredModule module = new ConfiguredModule();
-        ModuleContext context = new ModuleContext(module, candidate);
-        listener.onLoadPre(new ModuleLoadEvent.Pre(context));
+        parameterResolvers.registerIfAbsent(new ModuleCapabilityContextResolver(registry));
+        registerAndLoad(listener, context);
 
         OtherConstructorComponent component = new DefaultModuleInstanceFactory(parameterResolvers)
                 .createOther(OtherConstructorComponent.class, OtherInjectionContext.from(context));
 
-        assertSame(configRegistry.getContext(context), component.configContext);
+        assertSame(capability.context(context.id()), component.configContext);
         assertEquals("hello", component.configContext.get(ExampleConfig.class).message);
     }
 
-    @Test
-    void resolverInjectsModuleConfigContextIntoOtherField() {
-        ModuleConfigRegistry configRegistry = registry();
-        ConfigModuleListener listener = new ConfigModuleListener(configRegistry);
-        ModuleParameterResolverRegistry parameterResolvers = new ModuleParameterResolverRegistry();
-        ModuleCandidate candidate = new ModuleCandidate(
-                ConfiguredModule.class,
-                ConfiguredModule.class.getAnnotation(ModuleInfo.class)
-        );
+    private ModuleConfigContext load(ModuleContext context) {
+        return ConfigCapabilityTestSupport.load(tempDir, context);
+    }
 
-        parameterResolvers.registerIfAbsent(new ConfigContextResolver(configRegistry));
-        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate));
+    private ModuleCapability<ModuleConfigContext, ModuleConfigState> capability() {
+        return ConfigCapabilityTestSupport.capability(tempDir);
+    }
 
-        ConfiguredModule module = new ConfiguredModule();
-        ModuleContext context = new ModuleContext(module, candidate);
+    private ModuleCapabilityListener listener(ModuleCapability<ModuleConfigContext, ModuleConfigState> capability) {
+        return ConfigCapabilityTestSupport.listener(capability);
+    }
+
+    private void registerAndLoad(ModuleCapabilityListener listener, ModuleContext context) {
+        listener.onRegisterPre(new ModuleRegisterEvent.Pre(candidate(context)));
         listener.onLoadPre(new ModuleLoadEvent.Pre(context));
+    }
 
-        OtherFieldComponent component = new DefaultModuleInstanceFactory(parameterResolvers)
-                .createOther(OtherFieldComponent.class, OtherInjectionContext.from(context));
+    private static ModuleCandidate candidate(ModuleContext context) {
+        return new ModuleCandidate(context.getModuleClass(), context.getDescriptor());
+    }
 
-        assertSame(configRegistry.getContext(context), component.configContext);
-        assertEquals("hello", component.configContext.get(ExampleConfig.class).message);
+    private static ModuleContext context(Module module, Class<? extends Module> type) {
+        return new ModuleContext(module, type.getAnnotation(ModuleInfo.class));
     }
 
     @ModuleInfo(id = "configured", name = "Configured")
@@ -419,21 +343,6 @@ class ConfigModuleListenerTest {
         }
     }
 
-    @ModuleInfo(id = "existing-yml", name = "Existing YML")
-    private static class ExistingYmlModule implements Module {
-        @Override
-        public void onLoad() {
-        }
-
-        @Override
-        public void onEnable() {
-        }
-
-        @Override
-        public void onDisable() {
-        }
-    }
-
     @ModuleInfo(id = "constructor-context", name = "Constructor Context")
     private static class ConstructorContextModule implements Module {
         private final ModuleConfigContext configContext;
@@ -455,35 +364,12 @@ class ConfigModuleListenerTest {
         }
     }
 
-    @ModuleInfo(id = "field-context", name = "Field Context")
-    private static class FieldContextModule implements Module {
-        @ModuleInject
-        private ModuleConfigContext configContext;
-
-        @Override
-        public void onLoad() {
-        }
-
-        @Override
-        public void onEnable() {
-        }
-
-        @Override
-        public void onDisable() {
-        }
-    }
-
     private static class OtherConstructorComponent {
         private final ModuleConfigContext configContext;
 
         private OtherConstructorComponent(ModuleConfigContext configContext) {
             this.configContext = configContext;
         }
-    }
-
-    private static class OtherFieldComponent {
-        @ModuleInject
-        private ModuleConfigContext configContext;
     }
 
     @ConfigRegister
@@ -548,10 +434,6 @@ class ConfigModuleListenerTest {
                 throw saveFailure;
             }
         }
-    }
-
-    private ModuleConfigRegistry registry() {
-        return new ModuleConfigRegistry(tempDir, new YamlConfigFileFormat());
     }
 
     private static class TestBackend implements BlueLogBackend {

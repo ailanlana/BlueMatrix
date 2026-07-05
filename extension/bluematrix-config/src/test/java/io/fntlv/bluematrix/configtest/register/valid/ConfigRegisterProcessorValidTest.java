@@ -3,11 +3,10 @@ package io.fntlv.bluematrix.configtest.register.valid;
 import io.fntlv.bluematrix.config.extension.annotation.BlueConfig;
 import io.fntlv.bluematrix.config.extension.annotation.ConfigRegister;
 import io.fntlv.bluematrix.config.core.file.yaml.YamlConfigFile;
-import io.fntlv.bluematrix.config.core.file.yaml.YamlConfigFileFormat;
+import io.fntlv.bluematrix.config.extension.ConfigCapabilityTestSupport;
 import io.fntlv.bluematrix.config.extension.context.ModuleConfigState;
 import io.fntlv.bluematrix.config.extension.register.ConfigInjectionException;
 import io.fntlv.bluematrix.config.extension.register.ConfigRegisterProcessor;
-import io.fntlv.bluematrix.config.extension.ModuleConfigRegistry;
 import io.fntlv.bluematrix.core.module.Module;
 import io.fntlv.bluematrix.core.module.ModuleContext;
 import io.fntlv.bluematrix.core.module.ModuleInfo;
@@ -32,11 +31,10 @@ class ConfigRegisterProcessorValidTest {
     void registersAndLoadsConfigClass() {
         TestModule module = new TestModule();
         ModuleContext moduleContext = new ModuleContext(module, TestModule.class.getAnnotation(ModuleInfo.class));
-        ModuleConfigRegistry registry = new ModuleConfigRegistry(tempDir, new YamlConfigFileFormat());
         ModuleConfigState configState = new ModuleConfigState(
                 module,
                 moduleContext.id(),
-                registry.openFile(moduleContext.id())
+                ConfigCapabilityTestSupport.openFile(tempDir, moduleContext.id())
         );
 
         new ConfigRegisterProcessor().process(moduleContext, configState);
@@ -55,11 +53,10 @@ class ConfigRegisterProcessorValidTest {
     void duplicateProcessFailsOnDuplicateConfigRegistration() {
         TestModule module = new TestModule();
         ModuleContext moduleContext = new ModuleContext(module, TestModule.class.getAnnotation(ModuleInfo.class));
-        ModuleConfigRegistry registry = new ModuleConfigRegistry(tempDir, new YamlConfigFileFormat());
         ModuleConfigState configState = new ModuleConfigState(
                 module,
                 moduleContext.id(),
-                registry.openFile(moduleContext.id())
+                ConfigCapabilityTestSupport.openFile(tempDir, moduleContext.id())
         );
         ConfigRegisterProcessor processor = new ConfigRegisterProcessor();
 
